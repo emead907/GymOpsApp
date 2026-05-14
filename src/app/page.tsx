@@ -3,8 +3,58 @@
 import { useState } from "react"
 import ScheduleBlock from "@/components/ScheduleBlock"
 
+type ScheduleItem = {
+  id: number
+  title: string
+  time: string
+  staff: string
+  capacity: string
+  type: "camp" | "class" | "team" | "party" | "openGym" | "preschool" | "event"
+  location: string
+  startHour: string
+}
+
 export default function Home() {
   const [showModal, setShowModal] = useState(false)
+  const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([])
+
+const [formData, setFormData] = useState({
+  title: "",
+  type: "camp" as ScheduleItem["type"],
+  startTime: "",
+  endTime: "",
+  location: "Big Gym",
+  staff: "",
+  capacity: "",
+})
+
+function handleSaveBlock() {
+  const newBlock: ScheduleItem = {
+    id: Date.now(),
+    title: formData.title,
+    type: formData.type,
+    time: `${formData.startTime} - ${formData.endTime}`,
+    staff: formData.staff,
+    capacity: formData.capacity,
+    location: formData.location,
+    startHour: formData.startTime.slice(0, 2),
+  }
+
+  setScheduleItems([...scheduleItems, newBlock])
+
+  setFormData({
+    title: "",
+    type: "camp",
+    startTime: "",
+    endTime: "",
+    location: "Big Gym",
+    staff: "",
+    capacity: "",
+  })
+
+  setShowModal(false)
+}
+
   return (
     <main className="flex h-screen bg-gray-100">
       
@@ -186,44 +236,71 @@ export default function Home() {
         )}
       </div>
 
-      {/* Rec Gym */}
-      <div className="border-r p-2 relative">
-        {time === "9:00 AM" && (
-         <ScheduleBlock
-            title="Twinking Stars"
-            time="9:00 AM - 9:45 AM"
-            staff="Nikki"
-            capacity="8/8"
-            type="class"
-          />
-        )}
-      </div>
+        {/* Little Gym */}
+        <div className="border-r p-2 relative">
+
+          {scheduleItems
+            .filter(
+              (item) =>
+                item.location === "Little Gym" &&
+                item.startHour === time.slice(0, 2)
+            )
+            .map((item) => (
+              <ScheduleBlock
+                key={item.id}
+                title={item.title}
+                time={item.time}
+                staff={item.staff}
+                capacity={item.capacity}
+                type={item.type}
+              />
+            ))}
+
+        </div>
 
       {/* Party Room */}
-      <div className="border-r p-2 relative">
-        {time === "4:00 PM" && (
-          <ScheduleBlock
-            title="Birthday Party"
-            time="4:00 PM - 5:30 PM"
-            staff="Mckenna"
-            capacity="11/25"
-            type="party"
-          />
-        )}
-      </div>
+<div className="border-r p-2 relative">
 
-      {/* Preschool room */}
-      <div className="border-r p-2 relative">
-        {time === "9:00 AM" && (
+  {scheduleItems
+    .filter(
+      (item) =>
+        item.location === "Party Room" &&
+        item.startHour === time.slice(0, 2)
+    )
+    .map((item) => (
+      <ScheduleBlock
+        key={item.id}
+        title={item.title}
+        time={item.time}
+        staff={item.staff}
+        capacity={item.capacity}
+        type={item.type}
+      />
+    ))}
+
+</div>
+
+     {/* Preschool Room */}
+    <div className="border-r p-2 relative">
+
+      {scheduleItems
+        .filter(
+          (item) =>
+            item.location === "Preschool Room" &&
+            item.startHour === time.slice(0, 2)
+        )
+        .map((item) => (
           <ScheduleBlock
-            title="Preschool"
-            time="9:15 AM - 12:00 PM"
-            staff="Desia"
-            capacity="9/9"
-            type="preschool"
+            key={item.id}
+            title={item.title}
+            time={item.time}
+            staff={item.staff}
+            capacity={item.capacity}
+            type={item.type}
           />
-        )}
-      </div>
+        ))}
+
+    </div>
 
     </div>
 
@@ -242,16 +319,19 @@ export default function Home() {
         <h2 className="text-2xl font-bold">
           Add Schedule Block
         </h2>
+        <p className="text-sm text-gray-500 mt-1">
+          Create a new class, camp, event, or activity block.
+        </p>
 
         <button
           onClick={() => setShowModal(false)}
-          className="text-gray-500 hover:text-black"
+          className="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 hover:text-black transition"
         >
           ✕
         </button>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-5">
 
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -259,58 +339,98 @@ export default function Home() {
           </label>
 
           <input
-            className="w-full border rounded-xl p-3"
+            value={formData.title}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                title: e.target.value,
+              })
+            }
+            className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
             placeholder="Summer Camp"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
             Block Type
           </label>
 
-          <select className="w-full border rounded-xl p-3">
-            <option>Camp</option>
-            <option>Class</option>
-            <option>Team</option>
-            <option>Party</option>
-            <option>Preschool</option>
-            <option>Event</option>
-          </select>
+          <select
+  value={formData.type}
+  onChange={(e) =>
+    setFormData({
+      ...formData,
+      type: e.target.value as ScheduleItem["type"],
+    })
+  }
+  className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+>
+  <option value="camp">Camp</option>
+  <option value="class">Class</option>
+  <option value="team">Team</option>
+  <option value="party">Party</option>
+  <option value="preschool">Preschool</option>
+  <option value="event">Event / Field Trip</option>
+  <option value="openGym">Open Gym</option>
+</select>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
 
           <div>
-            <label className="block text-sm font-medium mb-1">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
               Start Time
             </label>
 
-            <input
+           <input
               type="time"
-              className="w-full border rounded-xl p-3"
+              value={formData.startTime}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  startTime: e.target.value,
+                })
+              }
+              className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
               End Time
             </label>
 
             <input
               type="time"
-              className="w-full border rounded-xl p-3"
+              value={formData.endTime}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  endTime: e.target.value,
+                })
+              }
+              className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
             />
           </div>
 
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
             Location
           </label>
 
-          <select className="w-full border rounded-xl p-3">
+          <select
+            value={formData.location}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                location: e.target.value,
+              })
+            }
+            className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+          >
             <option>Big Gym</option>
             <option>Little Gym</option>
             <option>Party Room</option>
@@ -320,25 +440,39 @@ export default function Home() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
             Staff
           </label>
 
-          <input
-            className="w-full border rounded-xl p-3"
-            placeholder="Coach Emily"
-          />
+         <input
+          value={formData.staff}
+          onChange={(e) =>
+            setFormData({
+              ...formData,
+              staff: e.target.value,
+            })
+          }
+          className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+          placeholder="Coach Emily"
+        />
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
             Capacity
           </label>
 
           <input
-            className="w-full border rounded-xl p-3"
-            placeholder="25"
-          />
+          value={formData.capacity}
+          onChange={(e) =>
+            setFormData({
+              ...formData,
+              capacity: e.target.value,
+            })
+          }
+          className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+          placeholder="25"
+        />
         </div>
 
       </div>
@@ -346,13 +480,27 @@ export default function Home() {
       <div className="flex justify-end gap-3 mt-8">
 
         <button
-          onClick={() => setShowModal(false)}
-          className="px-5 py-3 rounded-xl border"
+         onClick={() => {
+            setFormData({
+              title: "",
+              type: "camp",
+              startTime: "",
+              endTime: "",
+              location: "Big Gym",
+              staff: "",
+              capacity: "",
+            })
+
+            setShowModal(false)
+          }}
         >
           Cancel
         </button>
 
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl">
+        <button
+          onClick={handleSaveBlock}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-2xl font-semibold shadow-sm hover:shadow-md transition"
+        >
           Save Block
         </button>
 

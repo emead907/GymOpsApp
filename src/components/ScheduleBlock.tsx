@@ -32,7 +32,7 @@ export default function ScheduleBlock({
 }: ScheduleBlockProps) {
   return (
     <div
-      className={`rounded-xl border p-3 text-sm shadow-sm ${blockStyles[type]}`}
+      className={`rounded-2xl border p-3 text-sm shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer ${blockStyles[type]}`}
     >
       <p className="font-semibold">{title}</p>
 
