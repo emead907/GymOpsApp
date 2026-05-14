@@ -213,28 +213,27 @@ function handleSaveBlock() {
       </div>
 
 
-      {/* Gym Floor */}
-      <div className="border-r p-2 relative">
-        {time === "8:00 AM" && (
-          <ScheduleBlock
-            title="Summer Camp"
-            time="8:00 AM - 12:00 PM"
-            staff="Emily + 3"
-            capacity="42 / 50"
-            type="camp"
-          />
-        )}
+        {/* Big Gym */}
+        <div className="border-r p-2 relative">
 
-        {time === "1:00 PM" && (
-          <ScheduleBlock
-            title="Ninja"
-            time="1:00 PM - 2:00 PM"
-            staff="Adam"
-            capacity="6/8"
-            type="class"
-          />
-        )}
-      </div>
+          {scheduleItems
+            .filter(
+              (item) =>
+                item.location === "Big Gym" &&
+                item.startHour === time.slice(0, 2)
+            )
+            .map((item) => (
+              <ScheduleBlock
+                key={item.id}
+                title={item.title}
+                time={item.time}
+                staff={item.staff}
+                capacity={item.capacity}
+                type={item.type}
+              />
+            ))}
+
+        </div>
 
         {/* Little Gym */}
         <div className="border-r p-2 relative">
@@ -259,26 +258,26 @@ function handleSaveBlock() {
         </div>
 
       {/* Party Room */}
-<div className="border-r p-2 relative">
+      <div className="border-r p-2 relative">
 
-  {scheduleItems
-    .filter(
-      (item) =>
-        item.location === "Party Room" &&
-        item.startHour === time.slice(0, 2)
-    )
-    .map((item) => (
-      <ScheduleBlock
-        key={item.id}
-        title={item.title}
-        time={item.time}
-        staff={item.staff}
-        capacity={item.capacity}
-        type={item.type}
-      />
-    ))}
+        {scheduleItems
+          .filter(
+            (item) =>
+              item.location === "Party Room" &&
+              item.startHour === time.slice(0, 2)
+          )
+          .map((item) => (
+            <ScheduleBlock
+              key={item.id}
+              title={item.title}
+              time={item.time}
+              staff={item.staff}
+              capacity={item.capacity}
+              type={item.type}
+            />
+          ))}
 
-</div>
+      </div>
 
      {/* Preschool Room */}
     <div className="border-r p-2 relative">
