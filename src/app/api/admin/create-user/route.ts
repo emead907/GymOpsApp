@@ -16,6 +16,10 @@ export async function POST(req: Request) {
   }
 
   // 1. Create the auth user
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not set on the server." }, { status: 500 })
+  }
+
   const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
     email,
     password,
