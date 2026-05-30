@@ -5,6 +5,7 @@ type ScheduleBlockProps = {
   capacity?: string
   type: "camp" | "class" | "team" | "party" | "openGym" | "preschool" | "event"
   onClick?: () => void
+  compact?: boolean
 }
 
 const blockStyles: Record<string, string> = {
@@ -17,16 +18,24 @@ const blockStyles: Record<string, string> = {
   event: "bg-red-100 border-red-300 text-red-900",
 }
 
-export default function ScheduleBlock({ title, time, staff, capacity, type, onClick }: ScheduleBlockProps) {
+export default function ScheduleBlock({
+  title,
+  time,
+  staff,
+  capacity,
+  type,
+  onClick,
+  compact = false,
+}: ScheduleBlockProps) {
   return (
     <div
       onClick={onClick}
-      className={`rounded-xl border p-2.5 text-xs shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer ${blockStyles[type]}`}
+      className={`rounded-xl border p-2 text-xs shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer h-full ${blockStyles[type]}`}
     >
-      <p className="font-semibold text-sm leading-tight">{title}</p>
-      <p className="mt-0.5 opacity-75">{time}</p>
-      {staff && <p className="mt-1 opacity-80">{staff}</p>}
-      {capacity && <p className="opacity-70">{capacity} spots</p>}
+      <p className="font-semibold text-xs leading-tight truncate">{title}</p>
+      <p className="mt-0.5 opacity-75 truncate">{time}</p>
+      {!compact && staff && <p className="mt-1 opacity-80 truncate">{staff}</p>}
+      {!compact && capacity && <p className="opacity-70">{capacity} spots</p>}
     </div>
   )
 }

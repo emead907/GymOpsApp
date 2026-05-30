@@ -239,25 +239,41 @@ export default function SchedulePage() {
                 <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading schedule...</div>
               ) : (
                 TIME_SLOTS.map((time) => (
-                  <div key={time} className="grid border-b last:border-b-0 min-h-[90px]" style={{ gridTemplateColumns: `120px repeat(${LOCATIONS.length}, 1fr)` }}>
+                  <div key={time} className="grid border-b last:border-b-0 min-h-[100px]" style={{ gridTemplateColumns: `120px repeat(${LOCATIONS.length}, 1fr)` }}>
                     <div className="p-3 border-r text-xs text-gray-400 pt-3">{time}</div>
-                    {LOCATIONS.map((loc) => (
-                      <div key={loc} className="border-r last:border-r-0 p-2 space-y-1">
-                        {filteredItems
-                          .filter((item) => item.location === loc && item.startHour === slotHour(time))
-                          .map((item) => (
-                            <ScheduleBlock
-                              key={item.id}
-                              title={item.title}
-                              time={item.time}
-                              staff={item.staff}
-                              capacity={item.capacity}
-                              type={item.type}
-                              onClick={() => setSelectedBlock(item)}
-                            />
-                          ))}
-                      </div>
-                    ))}
+                    {LOCATIONS.map((loc) => {
+                      const cellItems = filteredItems.filter(
+                        (item) => item.location === loc && item.startHour === slotHour(time)
+                      )
+                      return (
+                        <div key={loc} className="border-r last:border-r-0 p-1.5">
+                          {cellItems.length === 0 ? null : (
+                            <div
+                              className="flex gap-1 h-full"
+                              style={{ minHeight: "74px" }}
+                            >
+                              {cellItems.map((item) => (
+                                <div
+                                  key={item.id}
+                                  className="flex-1 min-w-0"
+                                  style={{ minWidth: 0 }}
+                                >
+                                  <ScheduleBlock
+                                    title={item.title}
+                                    time={item.time}
+                                    staff={item.staff}
+                                    capacity={item.capacity}
+                                    type={item.type}
+                                    onClick={() => setSelectedBlock(item)}
+                                    compact={cellItems.length > 1}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 ))
               )}
