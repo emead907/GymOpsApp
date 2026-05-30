@@ -23,6 +23,21 @@ type Shift = {
 
 type Tab = "all" | "available" | "mine"
 
+type RecurringShift = {
+  id: string
+  title: string
+  type: string
+  day_of_week: number
+  start_time: string
+  end_time: string
+  location: string
+  needs_coverage: boolean
+  coverage_request_id?: string
+  coverage_date?: string
+}
+
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+
 const typeColors: Record<string, string> = {
   camp: "bg-orange-400 text-white",
   class: "bg-violet-500 text-white",
@@ -61,6 +76,8 @@ export default function ShiftSignupsPage() {
   const [loading, setLoading] = useState(true)
   const [actionId, setActionId] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
+  const [myRecurring, setMyRecurring] = useState<RecurringShift[]>([])
+  const [availableCoverage, setAvailableCoverage] = useState<RecurringShift[]>([])
 
   const supabase = createClient()
 
@@ -102,6 +119,35 @@ export default function ShiftSignupsPage() {
         }
       })
     )
+    // Load recurring shifts assigned to me + open coverage requests
+    const [{ data: myRecurringData }, { data: openCoverageData }] = await Promise.all([
+      supabase.from("recurring_shifts").select("*").eq("assigned_coach_id", userId).eq("active", true),
+      supabase.from("recurring_coverage_requests").select("*, recurring_shifts(*)").eq("status", "open").neq("requester_id", userId),
+    ])
+
+    setMyRecurring(
+      (myRecurringData ?? []).map((r) => {
+        const coverageReq = (openCoverageData ?? []).find((c) => c.recurring_shift_id === r.id)
+        return {
+          ...r,
+          needs_coverage: !!coverageReq,
+          coverage_request_id: coverageReq?.id,
+          coverage_date: coverageReq?.shift_date,
+        }
+      })
+    )
+
+    setAvailableCoverage(
+      (openCoverageData ?? [])
+        .filter((c) => c.recurring_shifts?.assigned_coach_id !== userId)
+        .map((c) => ({
+          ...c.recurring_shifts,
+          needs_coverage: true,
+          coverage_request_id: c.id,
+          coverage_date: c.shift_date,
+        }))
+    )
+
     setLoading(false)
   }, [userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -142,6 +188,35 @@ export default function ShiftSignupsPage() {
     if (!userId) return
     setActionId(shiftId)
     await supabase.from("coverage_requests").delete().eq("shift_id", shiftId).eq("requester_id", userId)
+    await loadShifts()
+    setActionId(null)
+  }
+
+  async function requestRecurringCoverage(recurringId: string) {
+    if (!userId) return
+    setActionId(recurringId)
+    const today = new Date().toISOString().split("T")[0]
+    await supabase.from("recurring_coverage_requests").insert({
+      recurring_shift_id: recurringId,
+      requester_id: userId,
+      shift_date: today,
+      status: "open",
+    })
+    await loadShifts()
+    setActionId(null)
+  }
+
+  async function cancelRecurringCoverage(coverageId: string) {
+    setActionId(coverageId)
+    await supabase.from("recurring_coverage_requests").delete().eq("id", coverageId)
+    await loadShifts()
+    setActionId(null)
+  }
+
+  async function coverRecurringShift(coverage: RecurringShift) {
+    if (!userId || !coverage.coverage_request_id) return
+    setActionId(coverage.coverage_request_id)
+    await supabase.from("recurring_coverage_requests").update({ status: "covered", coverer_id: userId }).eq("id", coverage.coverage_request_id)
     await loadShifts()
     setActionId(null)
   }
@@ -343,11 +418,102 @@ export default function ShiftSignupsPage() {
               )
             })}
 
-            {displayed.length === 0 && (
-              <div className="col-span-2 text-center py-20 text-gray-400">
-                {tab === "mine" ? "You haven't claimed any shifts yet." : "No shifts to show."}
+            {displayed.length === 0 && myRecurring.length === 0 && tab === "mine" && (
+              <div className="col-span-2 text-center py-10 text-gray-400">
+                You haven't claimed any shifts yet.
               </div>
             )}
+            {displayed.length === 0 && tab !== "mine" && availableCoverage.length === 0 && (
+              <div className="col-span-2 text-center py-10 text-gray-400">
+                No shifts to show.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Recurring shifts — My Shifts tab */}
+        {!loading && tab === "mine" && myRecurring.length > 0 && (
+          <div className="mt-6">
+            <h4 className="text-base font-bold text-gray-900 mb-3">My Weekly Classes</h4>
+            <div className="grid grid-cols-2 gap-4">
+              {myRecurring.map((r) => {
+                const iRequested = r.needs_coverage
+                const busy = actionId === r.id || actionId === r.coverage_request_id
+                return (
+                  <div key={r.id} className={`bg-white rounded-2xl border-2 p-5 shadow-sm flex flex-col gap-3 ${iRequested ? "border-amber-300" : "border-violet-200"}`}>
+                    <div className="flex items-start justify-between">
+                      <span className={`text-xs font-semibold px-3 py-1 rounded-full ${typeColors[r.type] ?? "bg-gray-200 text-gray-700"}`}>{r.title}</span>
+                      <span className="text-xs text-gray-400 font-medium">Weekly</span>
+                    </div>
+                    <div className="space-y-1.5 text-sm text-gray-600">
+                      <div className="flex items-center gap-2"><span>📅</span> Every {DAYS[r.day_of_week]}</div>
+                      <div className="flex items-center gap-2"><span>🕐</span> {formatTime(r.start_time)} – {formatTime(r.end_time)}</div>
+                      <div className="flex items-center gap-2"><span>📍</span> {r.location}</div>
+                    </div>
+                    {iRequested ? (
+                      <div className="space-y-2">
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-xs text-amber-800">
+                          <p className="font-semibold mb-1">⚠️ Coverage Requested</p>
+                          <p>You are still responsible until another coach covers this class.</p>
+                        </div>
+                        <button
+                          onClick={() => cancelRecurringCoverage(r.coverage_request_id!)}
+                          disabled={busy}
+                          className="w-full border border-amber-300 text-amber-700 hover:bg-amber-50 py-2 rounded-xl text-sm font-semibold transition disabled:opacity-50"
+                        >
+                          {busy ? "Cancelling..." : "Cancel Request"}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 bg-violet-50 text-violet-700 rounded-xl px-4 py-2.5 text-sm font-semibold justify-between">
+                        <span>✓ Assigned</span>
+                        <button
+                          onClick={() => requestRecurringCoverage(r.id)}
+                          disabled={busy}
+                          className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 bg-white px-2 py-1 rounded-lg transition disabled:opacity-50"
+                        >
+                          {busy ? "..." : "Need Cover?"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Recurring coverage needed — Available tab */}
+        {!loading && (tab === "all" || tab === "available") && availableCoverage.length > 0 && (
+          <div className="mt-6">
+            <h4 className="text-base font-bold text-gray-900 mb-3">Coverage Needed — Weekly Classes</h4>
+            <div className="grid grid-cols-2 gap-4">
+              {availableCoverage.map((r) => {
+                const busy = actionId === r.coverage_request_id
+                return (
+                  <div key={r.coverage_request_id} className="bg-white rounded-2xl border-2 border-blue-300 p-5 shadow-sm flex flex-col gap-3">
+                    <div className="flex items-center gap-2 bg-blue-50 text-blue-700 rounded-xl px-3 py-2 text-xs font-semibold">
+                      <span>🔄</span> Coverage Needed
+                    </div>
+                    <div className="flex items-start justify-between">
+                      <span className={`text-xs font-semibold px-3 py-1 rounded-full ${typeColors[r.type] ?? "bg-gray-200 text-gray-700"}`}>{r.title}</span>
+                    </div>
+                    <div className="space-y-1.5 text-sm text-gray-600">
+                      <div className="flex items-center gap-2"><span>📅</span> Every {DAYS[r.day_of_week]}</div>
+                      <div className="flex items-center gap-2"><span>🕐</span> {formatTime(r.start_time)} – {formatTime(r.end_time)}</div>
+                      <div className="flex items-center gap-2"><span>📍</span> {r.location}</div>
+                    </div>
+                    <button
+                      onClick={() => coverRecurringShift(r)}
+                      disabled={busy}
+                      className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:opacity-90 disabled:opacity-50 text-white py-2.5 rounded-xl text-sm font-semibold transition"
+                    >
+                      {busy ? "Covering..." : "Cover This Class"}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
       </div>

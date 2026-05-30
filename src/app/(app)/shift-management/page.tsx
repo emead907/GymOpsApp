@@ -17,7 +17,32 @@ type Shift = {
   coverage_requests: { id: string; requester_id: string; requester_name: string }[]
 }
 
-type Tab = "shifts" | "coverage"
+type Tab = "shifts" | "coverage" | "recurring"
+
+type RecurringShift = {
+  id: string
+  title: string
+  type: string
+  day_of_week: number
+  start_time: string
+  end_time: string
+  location: string
+  assigned_coach_id: string | null
+  coach_name: string | null
+  active: boolean
+}
+
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+
+const emptyRecurringForm = {
+  title: "",
+  type: "class",
+  day_of_week: "1",
+  start_time: "",
+  end_time: "",
+  location: "Main Gym",
+  assigned_coach_id: "",
+}
 
 const SHIFT_TYPES = ["camp", "class", "team", "party", "preschool", "event", "openGym"]
 const LOCATIONS = ["Big Gym", "Little Gym", "Party Room", "Preschool Room", "Classrooms", "Main Gym", "Ninja Zone"]
@@ -65,6 +90,11 @@ export default function ShiftManagementPage() {
   const [formData, setFormData] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [actionId, setActionId] = useState<string | null>(null)
+  const [recurringShifts, setRecurringShifts] = useState<RecurringShift[]>([])
+  const [showRecurringModal, setShowRecurringModal] = useState(false)
+  const [editingRecurringId, setEditingRecurringId] = useState<string | null>(null)
+  const [recurringForm, setRecurringForm] = useState(emptyRecurringForm)
+  const [profiles, setProfiles] = useState<{ id: string; name: string }[]>([])
 
   const supabase = createClient()
 
@@ -108,7 +138,22 @@ export default function ShiftManagementPage() {
     setLoading(false)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { loadShifts() }, [loadShifts])
+  const loadRecurring = useCallback(async () => {
+    const [{ data: recurringData }, { data: profilesData }] = await Promise.all([
+      supabase.from("recurring_shifts").select("*").order("day_of_week").order("start_time"),
+      supabase.from("profiles").select("id, full_name"),
+    ])
+    const nameMap = new Map((profilesData ?? []).map((p) => [p.id, p.full_name ?? "Unknown"]))
+    setProfiles((profilesData ?? []).map((p) => ({ id: p.id, name: p.full_name ?? p.id })))
+    setRecurringShifts(
+      (recurringData ?? []).map((r) => ({
+        ...r,
+        coach_name: r.assigned_coach_id ? (nameMap.get(r.assigned_coach_id) ?? "Unknown") : null,
+      }))
+    )
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { loadShifts(); loadRecurring() }, [loadShifts, loadRecurring])
 
   function openEdit(shift: Shift) {
     setEditingId(shift.id)
@@ -157,6 +202,62 @@ export default function ShiftManagementPage() {
     setShowModal(false)
     await loadShifts()
     setSaving(false)
+  }
+
+  function openCreateRecurring() {
+    setEditingRecurringId(null)
+    setRecurringForm(emptyRecurringForm)
+    setShowRecurringModal(true)
+  }
+
+  function openEditRecurring(r: RecurringShift) {
+    setEditingRecurringId(r.id)
+    setRecurringForm({
+      title: r.title,
+      type: r.type,
+      day_of_week: String(r.day_of_week),
+      start_time: r.start_time,
+      end_time: r.end_time,
+      location: r.location,
+      assigned_coach_id: r.assigned_coach_id ?? "",
+    })
+    setShowRecurringModal(true)
+  }
+
+  async function handleSaveRecurring() {
+    if (!recurringForm.title || !recurringForm.start_time || !recurringForm.end_time) return
+    setSaving(true)
+    const payload = {
+      title: recurringForm.title,
+      type: recurringForm.type,
+      day_of_week: parseInt(recurringForm.day_of_week),
+      start_time: recurringForm.start_time,
+      end_time: recurringForm.end_time,
+      location: recurringForm.location,
+      assigned_coach_id: recurringForm.assigned_coach_id || null,
+      active: true,
+    }
+    if (editingRecurringId) {
+      await supabase.from("recurring_shifts").update(payload).eq("id", editingRecurringId)
+    } else {
+      await supabase.from("recurring_shifts").insert(payload)
+    }
+    setShowRecurringModal(false)
+    setRecurringForm(emptyRecurringForm)
+    setEditingRecurringId(null)
+    await loadRecurring()
+    setSaving(false)
+  }
+
+  async function handleDeleteRecurring(id: string) {
+    if (!confirm("Delete this recurring shift?")) return
+    await supabase.from("recurring_shifts").delete().eq("id", id)
+    await loadRecurring()
+  }
+
+  async function handleToggleRecurring(id: string, active: boolean) {
+    await supabase.from("recurring_shifts").update({ active: !active }).eq("id", id)
+    await loadRecurring()
   }
 
   async function handleDeleteShift(shiftId: string) {
@@ -210,12 +311,15 @@ export default function ShiftManagementPage() {
           <h2 className="text-2xl font-bold text-gray-900">Shift Management</h2>
           <p className="text-gray-500 text-sm mt-1">Create shifts, manage claims, and handle coverage requests</p>
         </div>
-        <button
-          onClick={openCreate}
-          className="bg-violet-600 hover:bg-violet-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition shadow-sm"
-        >
-          + Create Shift
-        </button>
+        {tab === "recurring" ? (
+          <button onClick={openCreateRecurring} className="bg-violet-600 hover:bg-violet-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition shadow-sm">
+            + Add Recurring Shift
+          </button>
+        ) : (
+          <button onClick={openCreate} className="bg-violet-600 hover:bg-violet-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition shadow-sm">
+            + Create Shift
+          </button>
+        )}
       </div>
 
       {/* Stat Cards */}
@@ -252,6 +356,12 @@ export default function ShiftManagementPage() {
           {openRequests > 0 && (
             <span className="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{openRequests}</span>
           )}
+        </button>
+        <button
+          onClick={() => setTab("recurring")}
+          className={`px-5 py-2 rounded-full text-sm font-medium transition ${tab === "recurring" ? "bg-violet-100 text-violet-700" : "text-gray-500 hover:bg-gray-100"}`}
+        >
+          Recurring Shifts
         </button>
       </div>
 
@@ -348,7 +458,7 @@ export default function ShiftManagementPage() {
           </table>
         </div>
 
-      ) : (
+      ) : tab === "coverage" ? (
 
         /* Coverage Requests */
         <div className="space-y-4">
@@ -398,7 +508,74 @@ export default function ShiftManagementPage() {
             ))
           )}
         </div>
-      )}
+
+      ) : tab === "recurring" ? (
+
+        /* Recurring Shifts Table */
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-100">
+              <tr>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Shift</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Day & Time</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Location</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Assigned Coach</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                <th className="px-5 py-3" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {recurringShifts.map((r) => (
+                <tr key={r.id} className="hover:bg-gray-50 transition">
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${typeColors[r.type] ?? "bg-gray-100 text-gray-600"}`}>{r.type}</span>
+                      <span className="font-semibold text-gray-900">{r.title}</span>
+                    </div>
+                  </td>
+                  <td className="px-5 py-4 text-gray-600">
+                    <p className="font-medium">{DAYS[r.day_of_week]}</p>
+                    <p className="text-xs text-gray-400">{formatTime(r.start_time)} – {formatTime(r.end_time)}</p>
+                  </td>
+                  <td className="px-5 py-4 text-gray-600">{r.location}</td>
+                  <td className="px-5 py-4">
+                    {r.coach_name ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-violet-100 text-violet-700 text-xs font-bold flex items-center justify-center">
+                          {r.coach_name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
+                        </div>
+                        <span className="text-sm text-gray-800">{r.coach_name}</span>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-red-400 font-medium">Unassigned</span>
+                    )}
+                  </td>
+                  <td className="px-5 py-4">
+                    <button
+                      onClick={() => handleToggleRecurring(r.id, r.active)}
+                      className={`text-xs font-semibold px-3 py-1 rounded-full transition ${r.active ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+                    >
+                      {r.active ? "Active" : "Paused"}
+                    </button>
+                  </td>
+                  <td className="px-5 py-4 text-right">
+                    <div className="flex items-center justify-end gap-3">
+                      <button onClick={() => openEditRecurring(r)} className="text-xs text-violet-600 hover:text-violet-800 font-medium transition">Edit</button>
+                      <button onClick={() => handleDeleteRecurring(r.id)} className="text-xs text-red-500 hover:text-red-700 font-medium transition">Delete</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {recurringShifts.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="text-center py-16 text-gray-400">No recurring shifts yet.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+      ) : null}
 
       {/* Create Shift Modal */}
       {showModal && (
@@ -510,6 +687,111 @@ export default function ShiftManagementPage() {
                 className="bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white px-6 py-2.5 rounded-2xl font-semibold text-sm shadow-sm transition"
               >
                 {saving ? "Saving..." : editingId ? "Save Changes" : "Create Shift"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recurring Shift Modal */}
+      {showRecurringModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-3xl w-[520px] p-8 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold">{editingRecurringId ? "Edit Recurring Shift" : "Add Recurring Shift"}</h2>
+                <p className="text-sm text-gray-500 mt-1">Assign a coach to a weekly recurring class.</p>
+              </div>
+              <button onClick={() => setShowRecurringModal(false)} className="w-9 h-9 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-700 transition">✕</button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Title</label>
+                <input
+                  value={recurringForm.title}
+                  onChange={(e) => setRecurringForm({ ...recurringForm, title: e.target.value })}
+                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100 transition"
+                  placeholder="Beginner Gymnastics"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Type</label>
+                  <select
+                    value={recurringForm.type}
+                    onChange={(e) => setRecurringForm({ ...recurringForm, type: e.target.value })}
+                    className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100 transition"
+                  >
+                    {SHIFT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Day of Week</label>
+                  <select
+                    value={recurringForm.day_of_week}
+                    onChange={(e) => setRecurringForm({ ...recurringForm, day_of_week: e.target.value })}
+                    className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100 transition"
+                  >
+                    {DAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Start Time</label>
+                  <input
+                    type="time"
+                    value={recurringForm.start_time}
+                    onChange={(e) => setRecurringForm({ ...recurringForm, start_time: e.target.value })}
+                    className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100 transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">End Time</label>
+                  <input
+                    type="time"
+                    value={recurringForm.end_time}
+                    onChange={(e) => setRecurringForm({ ...recurringForm, end_time: e.target.value })}
+                    className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100 transition"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Location</label>
+                <select
+                  value={recurringForm.location}
+                  onChange={(e) => setRecurringForm({ ...recurringForm, location: e.target.value })}
+                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100 transition"
+                >
+                  {LOCATIONS.map((l) => <option key={l}>{l}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Assigned Coach</label>
+                <select
+                  value={recurringForm.assigned_coach_id}
+                  onChange={(e) => setRecurringForm({ ...recurringForm, assigned_coach_id: e.target.value })}
+                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100 transition"
+                >
+                  <option value="">Unassigned</option>
+                  {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button onClick={() => setShowRecurringModal(false)} className="px-5 py-2.5 text-sm text-gray-600 hover:bg-gray-100 rounded-2xl transition font-medium">Cancel</button>
+              <button
+                onClick={handleSaveRecurring}
+                disabled={saving}
+                className="bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white px-6 py-2.5 rounded-2xl font-semibold text-sm shadow-sm transition"
+              >
+                {saving ? "Saving..." : editingRecurringId ? "Save Changes" : "Add Shift"}
               </button>
             </div>
           </div>
