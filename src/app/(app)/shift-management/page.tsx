@@ -64,6 +64,7 @@ function timeToMins(t: string) {
 
 // Groups consecutive class-type recurring shifts for the same coach on the same day
 // where the gap between end_time and next start_time is ≤ 15 minutes.
+// Tracks each coach independently so interleaved coaches don't break the chain.
 function groupConsecutiveRecurring(shifts: RecurringShift[]): RecurringShift[][] {
   const sorted = [...shifts].sort((a, b) =>
     a.day_of_week !== b.day_of_week
@@ -71,21 +72,30 @@ function groupConsecutiveRecurring(shifts: RecurringShift[]): RecurringShift[][]
       : timeToMins(a.start_time) - timeToMins(b.start_time)
   )
   const groups: RecurringShift[][] = []
+  // key: "day_coachId" → index in groups[]
+  const lastGroupByCoach = new Map<string, number>()
+
   for (const shift of sorted) {
-    const last = groups[groups.length - 1]
-    const prev = last?.[last.length - 1]
-    const canMerge =
-      shift.type === "class" &&
-      prev?.type === "class" &&
-      prev.day_of_week === shift.day_of_week &&
-      prev.assigned_coach_id === shift.assigned_coach_id &&
-      timeToMins(shift.start_time) - timeToMins(prev.end_time) <= 15
-    if (canMerge) {
-      last.push(shift)
-    } else {
-      groups.push([shift])
+    const key = `${shift.day_of_week}_${shift.assigned_coach_id}`
+    const lastIdx = shift.type === "class" && shift.assigned_coach_id
+      ? lastGroupByCoach.get(key)
+      : undefined
+
+    if (lastIdx !== undefined) {
+      const lastGroup = groups[lastIdx]
+      const prev = lastGroup[lastGroup.length - 1]
+      if (timeToMins(shift.start_time) - timeToMins(prev.end_time) <= 15) {
+        lastGroup.push(shift)
+        continue
+      }
+    }
+
+    groups.push([shift])
+    if (shift.type === "class" && shift.assigned_coach_id) {
+      lastGroupByCoach.set(key, groups.length - 1)
     }
   }
+
   return groups
 }
 
