@@ -103,18 +103,26 @@ export default function StaffPage() {
         setSaving(false)
         return
       }
-      const res = await fetch("/api/admin/create-user", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: form.email,
-          password: form.password,
-          full_name: form.full_name,
-          role: form.role,
-        }),
-      })
-      const json = await res.json()
-      if (!res.ok) { setError(json.error ?? "Something went wrong."); setSaving(false); return }
+      let res: Response
+      try {
+        res = await fetch("/api/admin/create-user", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: form.email,
+            password: form.password,
+            full_name: form.full_name,
+            role: form.role,
+          }),
+        })
+      } catch (e) {
+        setError("Network error — could not reach the server.")
+        setSaving(false)
+        return
+      }
+      let json: { error?: string } = {}
+      try { json = await res.json() } catch {}
+      if (!res.ok) { setError(json.error ?? `Server error (${res.status}) — check that SUPABASE_SERVICE_ROLE_KEY is set in Vercel.`); setSaving(false); return }
     }
 
     setSaving(false)
