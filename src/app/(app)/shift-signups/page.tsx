@@ -70,6 +70,35 @@ function duration(start: string, end: string) {
   return m > 0 ? `${h} hr ${m} min` : `${h} hour${h !== 1 ? "s" : ""}`
 }
 
+function timeToMins(t: string) {
+  const [h, m] = t.split(":").map(Number)
+  return h * 60 + m
+}
+
+// Groups recurring shifts on the same day_of_week where the gap between
+// end_time of one shift and start_time of the next is ≤ 15 minutes.
+function groupConsecutive(shifts: RecurringShift[]): RecurringShift[][] {
+  const sorted = [...shifts].sort((a, b) =>
+    a.day_of_week !== b.day_of_week
+      ? a.day_of_week - b.day_of_week
+      : timeToMins(a.start_time) - timeToMins(b.start_time)
+  )
+  const groups: RecurringShift[][] = []
+  for (const shift of sorted) {
+    const last = groups[groups.length - 1]
+    if (
+      last &&
+      last[last.length - 1].day_of_week === shift.day_of_week &&
+      timeToMins(shift.start_time) - timeToMins(last[last.length - 1].end_time) <= 15
+    ) {
+      last.push(shift)
+    } else {
+      groups.push([shift])
+    }
+  }
+  return groups
+}
+
 export default function ShiftSignupsPage() {
   const [tab, setTab] = useState<Tab>("all")
   const [shifts, setShifts] = useState<Shift[]>([])
@@ -431,23 +460,35 @@ export default function ShiftSignupsPage() {
           </div>
         )}
 
-        {/* Recurring shifts — My Shifts tab */}
+        {/* Recurring shifts — My Shifts tab, grouped by day with consecutive merging */}
         {!loading && tab === "mine" && myRecurring.length > 0 && (
           <div className="mt-6">
             <h4 className="text-base font-bold text-gray-900 mb-3">My Weekly Classes</h4>
             <div className="grid grid-cols-2 gap-4">
-              {myRecurring.map((r) => {
-                const iRequested = r.needs_coverage
+              {groupConsecutive(myRecurring).map((group) => {
+                const r = group[0]
+                const lastR = group[group.length - 1]
+                const isMerged = group.length > 1
+                const shiftStart = formatTime(r.start_time)
+                const shiftEnd = formatTime(lastR.end_time)
+                const iRequested = group.some((s) => s.needs_coverage)
                 const busy = actionId === r.id || actionId === r.coverage_request_id
                 return (
                   <div key={r.id} className={`bg-white rounded-2xl border-2 p-5 shadow-sm flex flex-col gap-3 ${iRequested ? "border-amber-300" : "border-violet-200"}`}>
                     <div className="flex items-start justify-between">
-                      <span className={`text-xs font-semibold px-3 py-1 rounded-full ${typeColors[r.type] ?? "bg-gray-200 text-gray-700"}`}>{r.title}</span>
-                      <span className="text-xs text-gray-400 font-medium">Weekly</span>
+                      <div>
+                        {group.map((s) => (
+                          <span key={s.id} className={`inline-block text-xs font-semibold px-2.5 py-0.5 rounded-full mr-1 mb-1 ${typeColors[s.type] ?? "bg-gray-200 text-gray-700"}`}>{s.title}</span>
+                        ))}
+                      </div>
+                      <span className="text-xs text-gray-400 font-medium shrink-0 ml-1">Weekly</span>
                     </div>
                     <div className="space-y-1.5 text-sm text-gray-600">
                       <div className="flex items-center gap-2"><span>📅</span> Every {DAYS[r.day_of_week]}</div>
-                      <div className="flex items-center gap-2"><span>🕐</span> {formatTime(r.start_time)} – {formatTime(r.end_time)}</div>
+                      <div className="flex items-center gap-2">
+                        <span>🕐</span> {shiftStart} – {shiftEnd}
+                        {isMerged && <span className="text-xs text-violet-500 font-medium">({group.length} classes)</span>}
+                      </div>
                       <div className="flex items-center gap-2"><span>📍</span> {r.location}</div>
                     </div>
                     {iRequested ? (

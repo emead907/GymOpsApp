@@ -10,6 +10,7 @@ type ScheduleItem = {
   title: string
   time: string
   staff: string
+  coach_id?: string
   capacity: string
   enrolled: number
   type: "camp" | "class" | "team" | "party" | "openGym" | "preschool" | "event"
@@ -17,8 +18,11 @@ type ScheduleItem = {
   startHour: string
   startTime: string
   endTime: string
+  start_time: string
+  end_time: string
   notes?: string
   date: string
+  recurring_shift_id?: string
 }
 
 const LOCATIONS = ["Big Gym", "Little Gym", "Party Room", "Preschool Room", "Classrooms"]
@@ -78,9 +82,13 @@ function rowToItem(row: Record<string, unknown>): ScheduleItem {
     location: row.location as string,
     startTime,
     endTime,
+    start_time: startTime,
+    end_time: endTime,
     startHour: startTime.slice(0, 2),
     notes: (row.notes as string) ?? "",
     date: row.date as string,
+    coach_id: (row.coach_id as string) ?? undefined,
+    recurring_shift_id: (row.recurring_shift_id as string) ?? undefined,
   }
 }
 
@@ -92,8 +100,15 @@ export default function SchedulePage() {
   const [search, setSearch] = useState("")
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [coaches, setCoaches] = useState<{ id: string; name: string }[]>([])
 
   const supabase = createClient()
+
+  useEffect(() => {
+    supabase.from("profiles").select("id, full_name").then(({ data }) => {
+      setCoaches((data ?? []).map((p) => ({ id: p.id, name: p.full_name ?? "Unknown" })))
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadBlocks = useCallback(async () => {
     setLoading(true)
@@ -120,6 +135,7 @@ export default function SchedulePage() {
     endTime: "",
     location: "Big Gym",
     staff: "",
+    coach_id: "",
     capacity: "",
     enrolled: "",
     notes: "",
@@ -129,13 +145,18 @@ export default function SchedulePage() {
     if (!formData.title || !formData.startTime || !formData.endTime) return
     setSaving(true)
 
+    // If a coach is selected from dropdown, use their name
+    const selectedCoach = coaches.find((c) => c.id === formData.coach_id)
+    const staffName = selectedCoach ? selectedCoach.name : formData.staff || null
+
     const { error } = await supabase.from("schedule_blocks").insert({
       title: formData.title,
       type: formData.type,
       start_time: formData.startTime,
       end_time: formData.endTime,
       location: formData.location,
-      staff: formData.staff || null,
+      staff: staffName,
+      coach_id: formData.coach_id || null,
       capacity: formData.capacity ? parseInt(formData.capacity) : null,
       enrolled: formData.enrolled ? parseInt(formData.enrolled) : 0,
       notes: formData.notes || null,
@@ -143,7 +164,7 @@ export default function SchedulePage() {
     })
 
     if (!error) {
-      setFormData({ title: "", type: "camp", startTime: "", endTime: "", location: "Big Gym", staff: "", capacity: "", enrolled: "", notes: "" })
+      setFormData({ title: "", type: "camp", startTime: "", endTime: "", location: "Big Gym", staff: "", coach_id: "", capacity: "", enrolled: "", notes: "" })
       setShowModal(false)
       await loadBlocks()
     }
@@ -288,6 +309,7 @@ export default function SchedulePage() {
           block={selectedBlock}
           onClose={() => setSelectedBlock(null)}
           onDelete={handleDeleteBlock}
+          onRefresh={loadBlocks}
         />
       )}
 
@@ -347,10 +369,12 @@ export default function SchedulePage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Staff</label>
-                <input value={formData.staff} onChange={(e) => setFormData({ ...formData, staff: e.target.value })}
-                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100 transition"
-                  placeholder="Coach Emily" />
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Coach</label>
+                <select value={formData.coach_id} onChange={(e) => setFormData({ ...formData, coach_id: e.target.value })}
+                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100 transition">
+                  <option value="">Unassigned</option>
+                  {coaches.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
