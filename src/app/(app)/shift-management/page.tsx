@@ -224,24 +224,65 @@ export default function ShiftManagementPage() {
     setShowRecurringModal(true)
   }
 
+  function getNextDates(dayOfWeek: number, weeks: number): string[] {
+    const dates: string[] = []
+    const today = new Date()
+    const daysUntil = (dayOfWeek - today.getDay() + 7) % 7
+    for (let w = 0; w < weeks; w++) {
+      const d = new Date(today)
+      d.setDate(today.getDate() + daysUntil + w * 7)
+      dates.push(d.toISOString().split("T")[0])
+    }
+    return dates
+  }
+
   async function handleSaveRecurring() {
     if (!recurringForm.title || !recurringForm.start_time || !recurringForm.end_time) return
     setSaving(true)
+
+    const coachName = profiles.find((p) => p.id === recurringForm.assigned_coach_id)?.name ?? null
+    const dayOfWeek = parseInt(recurringForm.day_of_week)
+
     const payload = {
       title: recurringForm.title,
       type: recurringForm.type,
-      day_of_week: parseInt(recurringForm.day_of_week),
+      day_of_week: dayOfWeek,
       start_time: recurringForm.start_time,
       end_time: recurringForm.end_time,
       location: recurringForm.location,
       assigned_coach_id: recurringForm.assigned_coach_id || null,
       active: true,
     }
+
     if (editingRecurringId) {
       await supabase.from("recurring_shifts").update(payload).eq("id", editingRecurringId)
     } else {
-      await supabase.from("recurring_shifts").insert(payload)
+      // Create recurring shift
+      const { data: recurring } = await supabase
+        .from("recurring_shifts")
+        .insert(payload)
+        .select()
+        .single()
+
+      if (recurring) {
+        // Auto-generate 12 weeks of schedule blocks
+        const dates = getNextDates(dayOfWeek, 12)
+        const blocks = dates.map((date) => ({
+          title: recurringForm.title,
+          type: recurringForm.type,
+          start_time: recurringForm.start_time,
+          end_time: recurringForm.end_time,
+          location: recurringForm.location,
+          staff: coachName,
+          coach_id: recurringForm.assigned_coach_id || null,
+          enrolled: 0,
+          date,
+          recurring_shift_id: recurring.id,
+        }))
+        await supabase.from("schedule_blocks").insert(blocks)
+      }
     }
+
     setShowRecurringModal(false)
     setRecurringForm(emptyRecurringForm)
     setEditingRecurringId(null)
