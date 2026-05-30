@@ -11,6 +11,7 @@ type ScheduleItem = {
   time: string
   staff: string
   coach_id?: string
+  coaches?: { id: string; name: string }[]
   capacity: string
   enrolled: number
   type: "camp" | "class" | "team" | "party" | "openGym" | "preschool" | "event"
@@ -102,6 +103,7 @@ export default function SchedulePage() {
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [coaches, setCoaches] = useState<{ id: string; name: string }[]>([])
+  const [selectedCoachIds, setSelectedCoachIds] = useState<string[]>([])
 
   const supabase = createClient()
 
@@ -113,14 +115,23 @@ export default function SchedulePage() {
 
   const loadBlocks = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await supabase
-      .from("schedule_blocks")
-      .select("*")
-      .eq("date", toISODate(currentDate))
-      .order("start_time")
+    const [{ data, error }, { data: blockCoachesData }, { data: profilesData }] = await Promise.all([
+      supabase.from("schedule_blocks").select("*").eq("date", toISODate(currentDate)).order("start_time"),
+      supabase.from("schedule_block_coaches").select("block_id, coach_id"),
+      supabase.from("profiles").select("id, full_name"),
+    ])
 
     if (!error && data) {
-      setScheduleItems(data.map(rowToItem))
+      const nameMap = new Map((profilesData ?? []).map((p) => [p.id, p.full_name ?? "Unknown"]))
+      const coachesByBlock = new Map<string, { id: string; name: string }[]>()
+      ;(blockCoachesData ?? []).forEach((bc) => {
+        if (!coachesByBlock.has(bc.block_id)) coachesByBlock.set(bc.block_id, [])
+        coachesByBlock.get(bc.block_id)!.push({ id: bc.coach_id, name: nameMap.get(bc.coach_id) ?? "Unknown" })
+      })
+      setScheduleItems(data.map((row) => ({
+        ...rowToItem(row),
+        coaches: coachesByBlock.get(row.id) ?? [],
+      })))
     }
     setLoading(false)
   }, [currentDate]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -156,6 +167,7 @@ export default function SchedulePage() {
       enrolled: String(block.enrolled),
       notes: block.notes ?? "",
     })
+    setSelectedCoachIds(block.type === "team" ? (block.coaches ?? []).map((c) => c.id) : [])
     setShowModal(true)
   }
 
@@ -163,8 +175,12 @@ export default function SchedulePage() {
     if (!formData.title || !formData.startTime || !formData.endTime) return
     setSaving(true)
 
+    const isTeam = formData.type === "team"
     const selectedCoach = coaches.find((c) => c.id === formData.coach_id)
-    const staffName = selectedCoach ? selectedCoach.name : formData.staff || null
+    const teamCoachNames = coaches.filter((c) => selectedCoachIds.includes(c.id)).map((c) => c.name)
+    const staffName = isTeam
+      ? (teamCoachNames.join(", ") || null)
+      : (selectedCoach ? selectedCoach.name : formData.staff || null)
 
     const payload = {
       title: formData.title,
@@ -173,23 +189,38 @@ export default function SchedulePage() {
       end_time: formData.endTime,
       location: formData.location,
       staff: staffName,
-      coach_id: formData.coach_id || null,
+      coach_id: isTeam ? null : (formData.coach_id || null),
       capacity: formData.capacity ? parseInt(formData.capacity) : null,
       enrolled: formData.enrolled ? parseInt(formData.enrolled) : 0,
       notes: formData.notes || null,
     }
 
-    const { error } = editingBlockId
-      ? await supabase.from("schedule_blocks").update(payload).eq("id", editingBlockId)
-      : await supabase.from("schedule_blocks").insert({ ...payload, date: toISODate(currentDate) })
-
-    if (!error) {
-      setFormData({ title: "", type: "camp", startTime: "", endTime: "", location: "Big Gym", staff: "", coach_id: "", capacity: "", enrolled: "", notes: "" })
-      setEditingBlockId(null)
-      setShowModal(false)
-      setSelectedBlock(null)
-      await loadBlocks()
+    let blockId = editingBlockId
+    if (editingBlockId) {
+      const { error } = await supabase.from("schedule_blocks").update(payload).eq("id", editingBlockId)
+      if (error) { setSaving(false); return }
+    } else {
+      const { data, error } = await supabase.from("schedule_blocks").insert({ ...payload, date: toISODate(currentDate) }).select().single()
+      if (error || !data) { setSaving(false); return }
+      blockId = data.id
     }
+
+    // Sync team coaches
+    if (isTeam && blockId) {
+      await supabase.from("schedule_block_coaches").delete().eq("block_id", blockId)
+      if (selectedCoachIds.length > 0) {
+        await supabase.from("schedule_block_coaches").insert(
+          selectedCoachIds.map((coach_id) => ({ block_id: blockId, coach_id }))
+        )
+      }
+    }
+
+    setFormData({ title: "", type: "camp", startTime: "", endTime: "", location: "Big Gym", staff: "", coach_id: "", capacity: "", enrolled: "", notes: "" })
+    setSelectedCoachIds([])
+    setEditingBlockId(null)
+    setShowModal(false)
+    setSelectedBlock(null)
+    await loadBlocks()
     setSaving(false)
   }
 
@@ -392,12 +423,33 @@ export default function SchedulePage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Coach</label>
-                <select value={formData.coach_id} onChange={(e) => setFormData({ ...formData, coach_id: e.target.value })}
-                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100 transition">
-                  <option value="">Unassigned</option>
-                  {coaches.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  {formData.type === "team" ? "Coaches (select all that apply)" : "Coach"}
+                </label>
+                {formData.type === "team" ? (
+                  <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3 space-y-2 max-h-44 overflow-y-auto">
+                    {coaches.map((c) => (
+                      <label key={c.id} className="flex items-center gap-3 cursor-pointer hover:bg-white rounded-xl px-2 py-1.5 transition">
+                        <input
+                          type="checkbox"
+                          checked={selectedCoachIds.includes(c.id)}
+                          onChange={(e) => setSelectedCoachIds(e.target.checked
+                            ? [...selectedCoachIds, c.id]
+                            : selectedCoachIds.filter((id) => id !== c.id)
+                          )}
+                          className="w-4 h-4 accent-violet-600"
+                        />
+                        <span className="text-sm text-gray-800">{c.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <select value={formData.coach_id} onChange={(e) => setFormData({ ...formData, coach_id: e.target.value })}
+                    className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100 transition">
+                    <option value="">Unassigned</option>
+                    {coaches.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">

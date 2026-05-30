@@ -9,6 +9,7 @@ type Block = {
   time: string
   staff: string
   coach_id?: string
+  coaches?: { id: string; name: string }[]
   capacity: string
   enrolled: number
   type: string
@@ -174,8 +175,28 @@ export default function BlockDetailPanel({
         <div className="flex items-start gap-3">
           <span className="text-gray-400 mt-0.5">👤</span>
           <div className="flex-1">
-            <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">Coach</p>
-            {block.staff ? (
+            <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">
+              {block.type === "team" ? "Coaches" : "Coach"}
+            </p>
+            {block.type === "team" ? (
+              block.coaches && block.coaches.length > 0 ? (
+                <div className="space-y-2">
+                  {block.coaches.map((c) => {
+                    const ini = c.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
+                    return (
+                      <div key={c.id} className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-green-100 text-green-700 text-xs font-bold flex items-center justify-center">
+                          {ini}
+                        </div>
+                        <p className="text-sm font-semibold text-gray-800">{c.name}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400 italic">No coaches assigned</p>
+              )
+            ) : block.staff ? (
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-violet-100 text-violet-700 text-xs font-bold flex items-center justify-center">
                   {initials}
