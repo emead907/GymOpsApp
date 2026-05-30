@@ -77,6 +77,8 @@ function timeToMins(t: string) {
 
 // Groups recurring shifts on the same day_of_week where the gap between
 // end_time of one shift and start_time of the next is ≤ 15 minutes.
+// Only "class" type shifts are eligible for merging — all other types
+// (camp, event, party, etc.) stay as individual single-item groups.
 function groupConsecutive(shifts: RecurringShift[]): RecurringShift[][] {
   const sorted = [...shifts].sort((a, b) =>
     a.day_of_week !== b.day_of_week
@@ -86,11 +88,13 @@ function groupConsecutive(shifts: RecurringShift[]): RecurringShift[][] {
   const groups: RecurringShift[][] = []
   for (const shift of sorted) {
     const last = groups[groups.length - 1]
-    if (
+    const canMerge =
+      shift.type === "class" &&
       last &&
+      last[last.length - 1].type === "class" &&
       last[last.length - 1].day_of_week === shift.day_of_week &&
       timeToMins(shift.start_time) - timeToMins(last[last.length - 1].end_time) <= 15
-    ) {
+    if (canMerge) {
       last.push(shift)
     } else {
       groups.push([shift])
