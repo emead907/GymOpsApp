@@ -57,6 +57,38 @@ const typeColors: Record<string, string> = {
   team: "bg-teal-100 text-teal-700",
 }
 
+function timeToMins(t: string) {
+  const [h, m] = t.split(":").map(Number)
+  return h * 60 + m
+}
+
+// Groups consecutive class-type recurring shifts for the same coach on the same day
+// where the gap between end_time and next start_time is ≤ 15 minutes.
+function groupConsecutiveRecurring(shifts: RecurringShift[]): RecurringShift[][] {
+  const sorted = [...shifts].sort((a, b) =>
+    a.day_of_week !== b.day_of_week
+      ? a.day_of_week - b.day_of_week
+      : timeToMins(a.start_time) - timeToMins(b.start_time)
+  )
+  const groups: RecurringShift[][] = []
+  for (const shift of sorted) {
+    const last = groups[groups.length - 1]
+    const prev = last?.[last.length - 1]
+    const canMerge =
+      shift.type === "class" &&
+      prev?.type === "class" &&
+      prev.day_of_week === shift.day_of_week &&
+      prev.assigned_coach_id === shift.assigned_coach_id &&
+      timeToMins(shift.start_time) - timeToMins(prev.end_time) <= 15
+    if (canMerge) {
+      last.push(shift)
+    } else {
+      groups.push([shift])
+    }
+  }
+  return groups
+}
+
 function formatTime(t: string) {
   const [h, m] = t.split(":").map(Number)
   const period = h >= 12 ? "PM" : "AM"
@@ -566,47 +598,74 @@ export default function ShiftManagementPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {recurringShifts.map((r) => (
-                <tr key={r.id} className="hover:bg-gray-50 transition">
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${typeColors[r.type] ?? "bg-gray-100 text-gray-600"}`}>{r.type}</span>
-                      <span className="font-semibold text-gray-900">{r.title}</span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-4 text-gray-600">
-                    <p className="font-medium">{DAYS[r.day_of_week]}</p>
-                    <p className="text-xs text-gray-400">{formatTime(r.start_time)} – {formatTime(r.end_time)}</p>
-                  </td>
-                  <td className="px-5 py-4 text-gray-600">{r.location}</td>
-                  <td className="px-5 py-4">
-                    {r.coach_name ? (
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-violet-100 text-violet-700 text-xs font-bold flex items-center justify-center">
-                          {r.coach_name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
-                        </div>
-                        <span className="text-sm text-gray-800">{r.coach_name}</span>
+              {groupConsecutiveRecurring(recurringShifts).map((group) => {
+                const first = group[0]
+                const last = group[group.length - 1]
+                const merged = group.length > 1
+                return (
+                  <tr key={group.map(g => g.id).join("-")} className="hover:bg-gray-50 transition">
+                    <td className="px-5 py-4">
+                      <div className="flex flex-col gap-1">
+                        {merged ? (
+                          <>
+                            {group.map((r) => (
+                              <div key={r.id} className="flex items-center gap-2">
+                                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${typeColors[r.type] ?? "bg-gray-100 text-gray-600"}`}>{r.type}</span>
+                                <span className="font-semibold text-gray-900">{r.title}</span>
+                              </div>
+                            ))}
+                          </>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${typeColors[first.type] ?? "bg-gray-100 text-gray-600"}`}>{first.type}</span>
+                            <span className="font-semibold text-gray-900">{first.title}</span>
+                          </div>
+                        )}
                       </div>
-                    ) : (
-                      <span className="text-sm text-red-400 font-medium">Unassigned</span>
-                    )}
-                  </td>
-                  <td className="px-5 py-4">
-                    <button
-                      onClick={() => handleToggleRecurring(r.id, r.active)}
-                      className={`text-xs font-semibold px-3 py-1 rounded-full transition ${r.active ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
-                    >
-                      {r.active ? "Active" : "Paused"}
-                    </button>
-                  </td>
-                  <td className="px-5 py-4 text-right">
-                    <div className="flex items-center justify-end gap-3">
-                      <button onClick={() => openEditRecurring(r)} className="text-xs text-violet-600 hover:text-violet-800 font-medium transition">Edit</button>
-                      <button onClick={() => handleDeleteRecurring(r.id)} className="text-xs text-red-500 hover:text-red-700 font-medium transition">Delete</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-5 py-4 text-gray-600">
+                      <p className="font-medium">{DAYS[first.day_of_week]}</p>
+                      <p className="text-xs text-gray-400">
+                        {formatTime(first.start_time)} – {formatTime(last.end_time)}
+                        {merged && <span className="ml-1 text-violet-500 font-medium">({group.length} classes)</span>}
+                      </p>
+                    </td>
+                    <td className="px-5 py-4 text-gray-600">{first.location}</td>
+                    <td className="px-5 py-4">
+                      {first.coach_name ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-violet-100 text-violet-700 text-xs font-bold flex items-center justify-center">
+                            {first.coach_name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
+                          </div>
+                          <span className="text-sm text-gray-800">{first.coach_name}</span>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-red-400 font-medium">Unassigned</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-4">
+                      <button
+                        onClick={() => handleToggleRecurring(first.id, first.active)}
+                        className={`text-xs font-semibold px-3 py-1 rounded-full transition ${first.active ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+                      >
+                        {first.active ? "Active" : "Paused"}
+                      </button>
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      <div className="flex items-center justify-end gap-3">
+                        {merged ? (
+                          group.map((r) => (
+                            <button key={r.id} onClick={() => openEditRecurring(r)} className="text-xs text-violet-600 hover:text-violet-800 font-medium transition">Edit</button>
+                          ))
+                        ) : (
+                          <button onClick={() => openEditRecurring(first)} className="text-xs text-violet-600 hover:text-violet-800 font-medium transition">Edit</button>
+                        )}
+                        <button onClick={() => handleDeleteRecurring(first.id)} className="text-xs text-red-500 hover:text-red-700 font-medium transition">Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
               {recurringShifts.length === 0 && (
                 <tr>
                   <td colSpan={6} className="text-center py-16 text-gray-400">No recurring shifts yet.</td>
