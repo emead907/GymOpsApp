@@ -95,6 +95,7 @@ function rowToItem(row: Record<string, unknown>): ScheduleItem {
 export default function SchedulePage() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [showModal, setShowModal] = useState(false)
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null)
   const [selectedBlock, setSelectedBlock] = useState<ScheduleItem | null>(null)
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([])
   const [search, setSearch] = useState("")
@@ -141,15 +142,31 @@ export default function SchedulePage() {
     notes: "",
   })
 
+  function openEditBlock(block: ScheduleItem) {
+    setEditingBlockId(block.id)
+    setFormData({
+      title: block.title,
+      type: block.type,
+      startTime: block.start_time,
+      endTime: block.end_time,
+      location: block.location,
+      staff: block.staff,
+      coach_id: block.coach_id ?? "",
+      capacity: block.capacity,
+      enrolled: String(block.enrolled),
+      notes: block.notes ?? "",
+    })
+    setShowModal(true)
+  }
+
   async function handleSaveBlock() {
     if (!formData.title || !formData.startTime || !formData.endTime) return
     setSaving(true)
 
-    // If a coach is selected from dropdown, use their name
     const selectedCoach = coaches.find((c) => c.id === formData.coach_id)
     const staffName = selectedCoach ? selectedCoach.name : formData.staff || null
 
-    const { error } = await supabase.from("schedule_blocks").insert({
+    const payload = {
       title: formData.title,
       type: formData.type,
       start_time: formData.startTime,
@@ -160,12 +177,17 @@ export default function SchedulePage() {
       capacity: formData.capacity ? parseInt(formData.capacity) : null,
       enrolled: formData.enrolled ? parseInt(formData.enrolled) : 0,
       notes: formData.notes || null,
-      date: toISODate(currentDate),
-    })
+    }
+
+    const { error } = editingBlockId
+      ? await supabase.from("schedule_blocks").update(payload).eq("id", editingBlockId)
+      : await supabase.from("schedule_blocks").insert({ ...payload, date: toISODate(currentDate) })
 
     if (!error) {
       setFormData({ title: "", type: "camp", startTime: "", endTime: "", location: "Big Gym", staff: "", coach_id: "", capacity: "", enrolled: "", notes: "" })
+      setEditingBlockId(null)
       setShowModal(false)
+      setSelectedBlock(null)
       await loadBlocks()
     }
     setSaving(false)
@@ -310,19 +332,20 @@ export default function SchedulePage() {
           onClose={() => setSelectedBlock(null)}
           onDelete={handleDeleteBlock}
           onRefresh={loadBlocks}
+          onEdit={openEditBlock}
         />
       )}
 
-      {/* Add Block Modal */}
+      {/* Add / Edit Block Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-3xl w-[540px] p-8 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between mb-6">
               <div>
-                <h2 className="text-2xl font-bold">Add Schedule Block</h2>
-                <p className="text-sm text-gray-500 mt-1">Create a new class, camp, event, or activity.</p>
+                <h2 className="text-2xl font-bold">{editingBlockId ? "Edit Schedule Block" : "Add Schedule Block"}</h2>
+                <p className="text-sm text-gray-500 mt-1">{editingBlockId ? "Update the details for this block." : "Create a new class, camp, event, or activity."}</p>
               </div>
-              <button onClick={() => setShowModal(false)} className="w-9 h-9 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-700 transition">✕</button>
+              <button onClick={() => { setShowModal(false); setEditingBlockId(null) }} className="w-9 h-9 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-700 transition">✕</button>
             </div>
 
             <div className="space-y-4">
@@ -401,7 +424,7 @@ export default function SchedulePage() {
             </div>
 
             <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setShowModal(false)} className="px-5 py-2.5 text-sm text-gray-600 hover:bg-gray-100 rounded-2xl transition font-medium">Cancel</button>
+              <button onClick={() => { setShowModal(false); setEditingBlockId(null) }} className="px-5 py-2.5 text-sm text-gray-600 hover:bg-gray-100 rounded-2xl transition font-medium">Cancel</button>
               <button onClick={handleSaveBlock} disabled={saving}
                 className="bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white px-6 py-2.5 rounded-2xl font-semibold text-sm shadow-sm hover:shadow-md transition">
                 {saving ? "Saving..." : "Save Block"}

@@ -48,11 +48,14 @@ export default function BlockDetailPanel({
   onClose,
   onDelete,
   onRefresh,
+  onEdit,
 }: {
   block: Block
   onClose: () => void
   onDelete?: (id: string) => void
   onRefresh?: () => void
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onEdit?: (block: any) => void
 }) {
   const [makingRecurring, setMakingRecurring] = useState(false)
   const [recurringDone, setRecurringDone] = useState(!!block.recurring_shift_id)
@@ -233,9 +236,14 @@ export default function BlockDetailPanel({
             {makingRecurring ? "Creating recurring shift..." : "🔁 Make Recurring"}
           </button>
         )}
-        <button className="w-full bg-violet-600 hover:bg-violet-700 text-white py-2.5 rounded-2xl text-sm font-semibold transition">
-          Edit Block
-        </button>
+        {onEdit && (
+          <button
+            onClick={() => onEdit(block)}
+            className="w-full bg-violet-600 hover:bg-violet-700 text-white py-2.5 rounded-2xl text-sm font-semibold transition"
+          >
+            Edit Block
+          </button>
+        )}
         {onDelete && (
           <button
             onClick={() => onDelete(block.id)}
