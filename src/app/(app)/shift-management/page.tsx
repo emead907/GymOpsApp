@@ -589,10 +589,10 @@ export default function ShiftManagementPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Shift</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Day & Time</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Location</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Day</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Time</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Assigned Coach</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Classes</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
                 <th className="px-5 py-3" />
               </tr>
@@ -604,37 +604,22 @@ export default function ShiftManagementPage() {
                 const merged = group.length > 1
                 return (
                   <tr key={group.map(g => g.id).join("-")} className="hover:bg-gray-50 transition">
+
+                    {/* Day */}
                     <td className="px-5 py-4">
-                      <div className="flex flex-col gap-1">
-                        {merged ? (
-                          <>
-                            {group.map((r) => (
-                              <div key={r.id} className="flex items-center gap-2">
-                                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${typeColors[r.type] ?? "bg-gray-100 text-gray-600"}`}>{r.type}</span>
-                                <span className="font-semibold text-gray-900">{r.title}</span>
-                              </div>
-                            ))}
-                          </>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${typeColors[first.type] ?? "bg-gray-100 text-gray-600"}`}>{first.type}</span>
-                            <span className="font-semibold text-gray-900">{first.title}</span>
-                          </div>
-                        )}
-                      </div>
+                      <p className="font-semibold text-gray-900">{DAYS[first.day_of_week]}</p>
                     </td>
-                    <td className="px-5 py-4 text-gray-600">
-                      <p className="font-medium">{DAYS[first.day_of_week]}</p>
-                      <p className="text-xs text-gray-400">
-                        {formatTime(first.start_time)} – {formatTime(last.end_time)}
-                        {merged && <span className="ml-1 text-violet-500 font-medium">({group.length} classes)</span>}
-                      </p>
+
+                    {/* Time */}
+                    <td className="px-5 py-4 text-gray-600 whitespace-nowrap">
+                      {formatTime(first.start_time)} – {formatTime(last.end_time)}
                     </td>
-                    <td className="px-5 py-4 text-gray-600">{first.location}</td>
+
+                    {/* Assigned Coach */}
                     <td className="px-5 py-4">
                       {first.coach_name ? (
                         <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-violet-100 text-violet-700 text-xs font-bold flex items-center justify-center">
+                          <div className="w-7 h-7 rounded-full bg-violet-100 text-violet-700 text-xs font-bold flex items-center justify-center flex-shrink-0">
                             {first.coach_name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
                           </div>
                           <span className="text-sm text-gray-800">{first.coach_name}</span>
@@ -643,6 +628,22 @@ export default function ShiftManagementPage() {
                         <span className="text-sm text-red-400 font-medium">Unassigned</span>
                       )}
                     </td>
+
+                    {/* Classes */}
+                    <td className="px-5 py-4">
+                      <div className="flex flex-wrap gap-1.5">
+                        {group.map((r) => (
+                          <span key={r.id} className={`text-xs font-semibold px-2.5 py-1 rounded-full ${typeColors[r.type] ?? "bg-gray-100 text-gray-600"}`}>
+                            {r.title}
+                          </span>
+                        ))}
+                      </div>
+                      {merged && (
+                        <p className="text-xs text-gray-400 mt-1">{group.length} consecutive classes</p>
+                      )}
+                    </td>
+
+                    {/* Status */}
                     <td className="px-5 py-4">
                       <button
                         onClick={() => handleToggleRecurring(first.id, first.active)}
@@ -651,11 +652,15 @@ export default function ShiftManagementPage() {
                         {first.active ? "Active" : "Paused"}
                       </button>
                     </td>
+
+                    {/* Actions */}
                     <td className="px-5 py-4 text-right">
                       <div className="flex items-center justify-end gap-3">
                         {merged ? (
                           group.map((r) => (
-                            <button key={r.id} onClick={() => openEditRecurring(r)} className="text-xs text-violet-600 hover:text-violet-800 font-medium transition">Edit</button>
+                            <button key={r.id} onClick={() => openEditRecurring(r)} className="text-xs text-violet-600 hover:text-violet-800 font-medium transition">
+                              Edit
+                            </button>
                           ))
                         ) : (
                           <button onClick={() => openEditRecurring(first)} className="text-xs text-violet-600 hover:text-violet-800 font-medium transition">Edit</button>
