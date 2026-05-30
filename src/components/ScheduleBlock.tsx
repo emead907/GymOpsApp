@@ -34,7 +34,7 @@ export default function ScheduleBlock({
     >
       <p className="font-semibold text-xs leading-tight truncate">{title}</p>
       <p className="mt-0.5 opacity-75 truncate">{time}</p>
-      {!compact && staff && <p className="mt-1 opacity-80 truncate">{staff}</p>}
+      {staff && <p className="mt-1 opacity-80 truncate">{staff}</p>}
       {!compact && capacity && <p className="opacity-70">{capacity} spots</p>}
     </div>
   )
