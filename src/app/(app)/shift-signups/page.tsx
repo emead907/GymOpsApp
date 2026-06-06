@@ -90,21 +90,23 @@ function groupConsecutive(shifts: RecurringShift[]): RecurringShift[][] {
   const lastGroupByDay = new Map<number, number>()
 
   for (const shift of sorted) {
-    const lastIdx = shift.type === "class"
-      ? lastGroupByDay.get(shift.day_of_week)
-      : undefined
+    const mergeable = shift.type === "class" || shift.type === "team"
+    const lastIdx = mergeable ? lastGroupByDay.get(shift.day_of_week) : undefined
 
     if (lastIdx !== undefined) {
       const lastGroup = groups[lastIdx]
       const prev = lastGroup[lastGroup.length - 1]
-      if (prev.type === "class" && timeToMins(shift.start_time) - timeToMins(prev.end_time) <= 15) {
+      const gap = timeToMins(shift.start_time) - timeToMins(prev.end_time)
+      const isConsecutiveClass = shift.type === "class" && prev.type === "class" && gap <= 15
+      const isOverlappingTeam = shift.type === "team" && prev.type === "team" && gap < 0
+      if (isConsecutiveClass || isOverlappingTeam) {
         lastGroup.push(shift)
         continue
       }
     }
 
     groups.push([shift])
-    if (shift.type === "class") {
+    if (mergeable) {
       lastGroupByDay.set(shift.day_of_week, groups.length - 1)
     }
   }

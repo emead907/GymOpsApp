@@ -77,21 +77,25 @@ function groupConsecutiveRecurring(shifts: RecurringShift[]): RecurringShift[][]
 
   for (const shift of sorted) {
     const key = `${shift.day_of_week}_${shift.assigned_coach_id}`
-    const lastIdx = shift.type === "class" && shift.assigned_coach_id
-      ? lastGroupByCoach.get(key)
-      : undefined
+    const mergeable = shift.assigned_coach_id && (shift.type === "class" || shift.type === "team")
+    const lastIdx = mergeable ? lastGroupByCoach.get(key) : undefined
 
     if (lastIdx !== undefined) {
       const lastGroup = groups[lastIdx]
       const prev = lastGroup[lastGroup.length - 1]
-      if (timeToMins(shift.start_time) - timeToMins(prev.end_time) <= 15) {
+      const gap = timeToMins(shift.start_time) - timeToMins(prev.end_time)
+      const isConsecutiveClass = shift.type === "class" && prev.type === "class" && gap <= 15
+      const isOverlappingTeam = shift.type === "team" && prev.type === "team" && gap < 0
+      if (isConsecutiveClass || isOverlappingTeam) {
         lastGroup.push(shift)
+        // update end time tracking — use the latest end time in group
+        lastGroupByCoach.set(key, lastIdx)
         continue
       }
     }
 
     groups.push([shift])
-    if (shift.type === "class" && shift.assigned_coach_id) {
+    if (mergeable) {
       lastGroupByCoach.set(key, groups.length - 1)
     }
   }
@@ -682,7 +686,9 @@ export default function ShiftManagementPage() {
                         ))}
                       </div>
                       {merged && (
-                        <p className="text-xs text-gray-400 mt-1">{group.length} consecutive classes</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {first.type === "team" ? `${group.length} groups` : `${group.length} consecutive classes`}
+                        </p>
                       )}
                     </td>
 
