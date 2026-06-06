@@ -137,6 +137,8 @@ export default function ShiftManagementPage() {
   const [editingRecurringId, setEditingRecurringId] = useState<string | null>(null)
   const [recurringForm, setRecurringForm] = useState(emptyRecurringForm)
   const [profiles, setProfiles] = useState<{ id: string; name: string }[]>([])
+  const [seeding, setSeeding] = useState(false)
+  const [seedResult, setSeedResult] = useState<string | null>(null)
 
   const supabase = createClient()
 
@@ -380,6 +382,21 @@ export default function ShiftManagementPage() {
     s.coverage_requests.map((r) => ({ ...r, shift: s }))
   )
 
+  async function handleSeedSchedule() {
+    if (!confirm("This will populate the schedule, recurring shifts, and open claimable shifts from the master class schedule. Continue?")) return
+    setSeeding(true)
+    setSeedResult(null)
+    try {
+      const res = await fetch("/api/admin/seed-schedule", { method: "POST" })
+      const json = await res.json()
+      setSeedResult(json.message ?? (res.ok ? "Done!" : json.error ?? "Error"))
+      if (res.ok) { loadShifts(); loadRecurring() }
+    } catch {
+      setSeedResult("Network error")
+    }
+    setSeeding(false)
+  }
+
   const totalShifts = shifts.length
   const filledShifts = shifts.filter((s) => s.claims.length >= s.total_spots).length
   const openRequests = openCoverageRequests.length
@@ -395,15 +412,31 @@ export default function ShiftManagementPage() {
           <p className="text-gray-500 text-sm mt-1">Create shifts, manage claims, and handle coverage requests</p>
         </div>
         {tab === "recurring" ? (
-          <button onClick={openCreateRecurring} className="bg-violet-600 hover:bg-violet-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition shadow-sm">
-            + Add Recurring Shift
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSeedSchedule}
+              disabled={seeding}
+              className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition shadow-sm disabled:opacity-60"
+            >
+              {seeding ? "Seeding..." : "🌱 Seed Schedule"}
+            </button>
+            <button onClick={openCreateRecurring} className="bg-violet-600 hover:bg-violet-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition shadow-sm">
+              + Add Recurring Shift
+            </button>
+          </div>
         ) : (
           <button onClick={openCreate} className="bg-violet-600 hover:bg-violet-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition shadow-sm">
             + Create Shift
           </button>
         )}
       </div>
+
+      {seedResult && (
+        <div className="mb-4 bg-teal-50 border border-teal-200 rounded-xl px-4 py-3 text-sm text-teal-800 flex items-center justify-between">
+          <span>✅ {seedResult}</span>
+          <button onClick={() => setSeedResult(null)} className="text-teal-500 hover:text-teal-700 ml-4">✕</button>
+        </div>
+      )}
 
       {/* Stat Cards */}
       <div className="grid grid-cols-4 gap-4 mb-8">
