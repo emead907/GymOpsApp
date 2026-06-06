@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client"
 
 const navItems = [
   { label: "Schedule", href: "/schedule", icon: "⊞" },
+  { label: "Class Schedule", href: "/class-schedule", icon: "🗓️" },
   { label: "Camps", href: "/camps", icon: "⛺" },
   { label: "Staff", href: "/staff", icon: "👤" },
   { label: "Shift Signups", href: "/shift-signups", icon: "📋" },
@@ -23,7 +24,7 @@ const mobileNav = [
   { label: "Shifts", href: "/shift-signups", icon: "📋" },
   { label: "Mgmt", href: "/shift-management", icon: "🗂️" },
   { label: "Clock", href: "/time-clock", icon: "🕐" },
-  { label: "Camps", href: "/camps", icon: "⛺" },
+  { label: "Classes", href: "/class-schedule", icon: "🗓️" },
 ]
 
 export default function Sidebar() {
