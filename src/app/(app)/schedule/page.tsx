@@ -29,7 +29,14 @@ type ScheduleItem = {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const LOCATIONS = ["Big Gym", "Little Gym", "Party Room", "Preschool Room", "Classrooms"]
+// The three display columns and which DB location values map into each
+const COLUMNS = [
+  { label: "Little Gym",    locations: ["Little Gym", "Preschool Room", "Classrooms"] },
+  { label: "Big Gym",       locations: ["Big Gym"] },
+  { label: "Events / Camps", locations: ["Party Room", "Camp", "Events / Camps"] },
+]
+// Flat list for the location dropdown when adding/editing blocks
+const LOCATIONS = ["Little Gym", "Big Gym", "Party Room", "Preschool Room", "Classrooms", "Events / Camps"]
 
 const START_HOUR = 8
 const END_HOUR = 20
@@ -234,7 +241,7 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(true)
   const [coaches, setCoaches] = useState<{ id: string; name: string }[]>([])
   const [selectedCoachIds, setSelectedCoachIds] = useState<string[]>([])
-  const [activeLocation, setActiveLocation] = useState(LOCATIONS[0])
+  const [activeLocation, setActiveLocation] = useState(COLUMNS[0].label)
 
   const supabase = createClient()
 
@@ -427,17 +434,17 @@ export default function SchedulePage() {
 
           {/* Mobile location tabs */}
           <div className="md:hidden flex border-t border-gray-100 -mx-4 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-            {LOCATIONS.map((loc) => (
+            {COLUMNS.map((col) => (
               <button
-                key={loc}
-                onClick={() => setActiveLocation(loc)}
+                key={col.label}
+                onClick={() => setActiveLocation(col.label)}
                 className={`flex-shrink-0 px-4 py-2.5 text-xs font-semibold transition-colors whitespace-nowrap ${
-                  activeLocation === loc
+                  activeLocation === col.label
                     ? "text-violet-700 border-b-2 border-violet-600"
                     : "text-gray-400 hover:text-gray-600"
                 }`}
               >
-                {loc}
+                {col.label}
               </button>
             ))}
           </div>
@@ -449,24 +456,27 @@ export default function SchedulePage() {
             <div className="flex items-center justify-center h-64 text-gray-400 text-sm">Loading schedule...</div>
           ) : (
             <>
-              {/* Mobile: single column */}
+              {/* Mobile: single column for active tab */}
               <div className="md:hidden flex">
                 <TimeAxis />
-                <TimelineColumn
-                  blocks={filteredItems.filter((i) => i.location === activeLocation)}
-                  label={activeLocation}
-                  onSelect={setSelectedBlock}
-                />
+                {COLUMNS.filter((col) => col.label === activeLocation).map((col) => (
+                  <TimelineColumn
+                    key={col.label}
+                    blocks={filteredItems.filter((i) => col.locations.includes(i.location))}
+                    label={col.label}
+                    onSelect={setSelectedBlock}
+                  />
+                ))}
               </div>
 
-              {/* Desktop: all columns */}
-              <div className="hidden md:flex min-w-[700px]">
+              {/* Desktop: three columns */}
+              <div className="hidden md:flex min-w-[560px]">
                 <TimeAxis />
-                {LOCATIONS.map((loc) => (
+                {COLUMNS.map((col) => (
                   <TimelineColumn
-                    key={loc}
-                    blocks={filteredItems.filter((i) => i.location === loc)}
-                    label={loc}
+                    key={col.label}
+                    blocks={filteredItems.filter((i) => col.locations.includes(i.location))}
+                    label={col.label}
                     onSelect={setSelectedBlock}
                   />
                 ))}
