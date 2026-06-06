@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import ScheduleBlock from "@/components/ScheduleBlock"
 import BlockDetailPanel from "@/components/BlockDetailPanel"
 import { createClient } from "@/lib/supabase/client"
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type ScheduleItem = {
   id: string
@@ -26,13 +27,32 @@ type ScheduleItem = {
   recurring_shift_id?: string
 }
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
 const LOCATIONS = ["Big Gym", "Little Gym", "Party Room", "Preschool Room", "Classrooms"]
 
-const TIME_SLOTS = [
-  "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM",
-  "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM",
-  "4:00 PM", "5:00 PM", "6:00 PM", "7:00 PM", "8:00 PM",
-]
+const START_HOUR = 8
+const END_HOUR = 20
+const HOUR_HEIGHT = 64
+const TOTAL_HEIGHT = (END_HOUR - START_HOUR) * HOUR_HEIGHT
+const HOURS = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => START_HOUR + i)
+
+const TYPE_STYLE: Record<string, { bg: string; border: string; text: string; bar: string }> = {
+  camp:     { bg: "bg-blue-50",    border: "border-blue-200",   text: "text-blue-900",   bar: "bg-blue-500"   },
+  class:    { bg: "bg-violet-50",  border: "border-violet-200", text: "text-violet-900", bar: "bg-violet-500" },
+  team:     { bg: "bg-green-50",   border: "border-green-200",  text: "text-green-900",  bar: "bg-green-500"  },
+  party:    { bg: "bg-pink-50",    border: "border-pink-200",   text: "text-pink-900",   bar: "bg-pink-500"   },
+  openGym:  { bg: "bg-orange-50",  border: "border-orange-200", text: "text-orange-900", bar: "bg-orange-500" },
+  preschool:{ bg: "bg-yellow-50",  border: "border-yellow-200", text: "text-yellow-900", bar: "bg-yellow-400" },
+  event:    { bg: "bg-red-50",     border: "border-red-200",    text: "text-red-900",    bar: "bg-red-500"    },
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function toMins(t: string) {
+  const [h, m] = t.split(":").map(Number)
+  return h * 60 + m
+}
 
 function formatDate(date: Date) {
   return date.toLocaleDateString("en-US", {
@@ -51,32 +71,20 @@ function offsetDate(date: Date, days: number) {
 }
 
 function formatTimeDisplay(t: string) {
-  // t is "HH:MM" 24hr from <input type="time">
   const [h, m] = t.split(":").map(Number)
   const period = h >= 12 ? "PM" : "AM"
   const hour = h % 12 || 12
   return `${hour}:${String(m).padStart(2, "0")} ${period}`
 }
 
-function slotHour(slot: string) {
-  // "9:00 AM" → "09", "12:00 PM" → "12"
-  const [time, period] = slot.split(" ")
-  let h = parseInt(time.split(":")[0])
-  if (period === "PM" && h !== 12) h += 12
-  if (period === "AM" && h === 12) h = 0
-  return String(h).padStart(2, "0")
-}
-
 function rowToItem(row: Record<string, unknown>): ScheduleItem {
   const startTime = row.start_time as string
   const endTime = row.end_time as string
-  const startDisplay = formatTimeDisplay(startTime)
-  const endDisplay = formatTimeDisplay(endTime)
   return {
     id: row.id as string,
     title: row.title as string,
     type: row.type as ScheduleItem["type"],
-    time: `${startDisplay} - ${endDisplay}`,
+    time: `${formatTimeDisplay(startTime)} – ${formatTimeDisplay(endTime)}`,
     staff: (row.staff as string) ?? "",
     capacity: String(row.capacity ?? ""),
     enrolled: (row.enrolled as number) ?? 0,
@@ -93,6 +101,128 @@ function rowToItem(row: Record<string, unknown>): ScheduleItem {
   }
 }
 
+// Lay blocks side-by-side when they overlap within a column
+function layoutBlocks(blocks: ScheduleItem[]) {
+  if (!blocks.length) return []
+  const sorted = [...blocks].sort((a, b) => toMins(a.startTime) - toMins(b.startTime))
+  const colEnds: number[] = []
+  const withCol = sorted.map(b => {
+    const s = toMins(b.startTime)
+    let col = colEnds.findIndex(e => e <= s)
+    if (col === -1) { col = colEnds.length; colEnds.push(0) }
+    colEnds[col] = toMins(b.endTime)
+    return { ...b, col }
+  })
+  return withCol.map(b => {
+    const bs = toMins(b.startTime), be = toMins(b.endTime)
+    let maxCol = b.col
+    withCol.forEach(o => {
+      if (toMins(o.startTime) < be && toMins(o.endTime) > bs) maxCol = Math.max(maxCol, o.col)
+    })
+    return { ...b, totalCols: maxCol + 1 }
+  })
+}
+
+// ─── Timeline Column ──────────────────────────────────────────────────────────
+
+function TimelineColumn({
+  blocks,
+  label,
+  onSelect,
+}: {
+  blocks: ScheduleItem[]
+  label: string
+  onSelect: (item: ScheduleItem) => void
+}) {
+  const laid = layoutBlocks(blocks)
+
+  return (
+    <div className="flex-1 min-w-[140px] flex flex-col border-l border-gray-100 first:border-l-0">
+      {/* Column header */}
+      <div className="px-3 py-2.5 bg-gray-50 border-b border-gray-100 text-xs font-bold text-gray-500 uppercase tracking-wider text-center sticky top-0 z-10">
+        {label}
+      </div>
+
+      {/* Timeline */}
+      <div className="relative" style={{ height: TOTAL_HEIGHT }}>
+        {/* Hour lines */}
+        {HOURS.map(h => (
+          <div key={h} className="absolute left-0 right-0 border-t border-gray-100" style={{ top: (h - START_HOUR) * HOUR_HEIGHT }} />
+        ))}
+        {/* Half-hour lines */}
+        {HOURS.map(h => (
+          <div key={`h-${h}`} className="absolute left-0 right-0 border-t border-gray-50" style={{ top: (h - START_HOUR) * HOUR_HEIGHT + HOUR_HEIGHT / 2 }} />
+        ))}
+
+        {blocks.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <p className="text-xs text-gray-200 font-medium rotate-0">Empty</p>
+          </div>
+        )}
+
+        {laid.map((b) => {
+          const top = (toMins(b.startTime) - START_HOUR * 60) / 60 * HOUR_HEIGHT
+          const height = (toMins(b.endTime) - toMins(b.startTime)) / 60 * HOUR_HEIGHT
+          const s = TYPE_STYLE[b.type] ?? TYPE_STYLE.class
+          const showTime = height >= 36
+          const showCoach = height >= 48
+
+          return (
+            <div
+              key={b.id}
+              className="absolute px-0.5 py-0.5 cursor-pointer"
+              style={{
+                top,
+                height,
+                left: `${b.col * 100 / b.totalCols}%`,
+                width: `${100 / b.totalCols}%`,
+              }}
+              onClick={() => onSelect(b)}
+            >
+              <div className={`h-full rounded-lg border overflow-hidden flex flex-col shadow-sm hover:shadow-md hover:-translate-y-px transition-all ${s.bg} ${s.border}`}>
+                <div className={`h-1 flex-shrink-0 rounded-t-lg ${s.bar}`} />
+                <div className="px-1.5 py-1 flex-1 min-h-0 overflow-hidden">
+                  <p className={`font-semibold leading-tight text-[11px] ${s.text} line-clamp-2`}>{b.title}</p>
+                  {showTime && (
+                    <p className="text-[10px] text-gray-400 mt-0.5 leading-tight">{b.time}</p>
+                  )}
+                  {showCoach && b.staff && (
+                    <p className={`text-[10px] mt-0.5 font-medium leading-tight ${s.text} opacity-70 truncate`}>
+                      {b.staff.split(",").map(n => n.trim().split(" ")[0]).join(", ")}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ─── Time Axis ────────────────────────────────────────────────────────────────
+
+function TimeAxis() {
+  return (
+    <div className="flex-shrink-0 w-14 bg-white border-r border-gray-100" style={{ paddingTop: "41px" }}>
+      <div className="relative" style={{ height: TOTAL_HEIGHT }}>
+        {HOURS.map(h => (
+          <div
+            key={h}
+            className="absolute right-2 text-[10px] text-gray-400 font-medium leading-none"
+            style={{ top: (h - START_HOUR) * HOUR_HEIGHT - 5 }}
+          >
+            {h === 12 ? "12p" : h > 12 ? `${h - 12}p` : `${h}a`}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function SchedulePage() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [showModal, setShowModal] = useState(false)
@@ -104,6 +234,7 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(true)
   const [coaches, setCoaches] = useState<{ id: string; name: string }[]>([])
   const [selectedCoachIds, setSelectedCoachIds] = useState<string[]>([])
+  const [activeLocation, setActiveLocation] = useState(LOCATIONS[0])
 
   const supabase = createClient()
 
@@ -136,9 +267,7 @@ export default function SchedulePage() {
     setLoading(false)
   }, [currentDate]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    loadBlocks()
-  }, [loadBlocks])
+  useEffect(() => { loadBlocks() }, [loadBlocks])
 
   const [formData, setFormData] = useState({
     title: "",
@@ -205,7 +334,6 @@ export default function SchedulePage() {
       blockId = data.id
     }
 
-    // Sync team coaches
     if (isTeam && blockId) {
       await supabase.from("schedule_block_coaches").delete().eq("block_id", blockId)
       if (selectedCoachIds.length > 0) {
@@ -244,115 +372,107 @@ export default function SchedulePage() {
   const totalCapacity = scheduleItems.reduce((sum, i) => sum + (parseInt(i.capacity) || 0), 0)
 
   return (
-    <div className="flex h-full">
-      <div className="flex-1 flex flex-col min-w-0">
+    <div className="flex h-full overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
-        {/* Top Bar */}
-        <div className="flex items-center justify-between px-8 pt-8 pb-4">
-          <div className="flex items-center gap-4">
-            <h2 className="text-2xl font-bold text-gray-900">Master Schedule</h2>
-            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-1 py-1 shadow-sm">
-              <button onClick={() => setCurrentDate(offsetDate(currentDate, -1))} className="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-500">‹</button>
-              <span className="text-sm font-medium text-gray-700 px-2 min-w-[200px] text-center">{formatDate(currentDate)}</span>
-              <button onClick={() => setCurrentDate(offsetDate(currentDate, 1))} className="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-500">›</button>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <button className="flex items-center gap-2 text-sm text-gray-600 border border-gray-200 bg-white rounded-xl px-4 py-2 hover:bg-gray-50 transition shadow-sm">⚙ Filters</button>
-            <button className="flex items-center gap-2 text-sm text-gray-600 border border-gray-200 bg-white rounded-xl px-4 py-2 hover:bg-gray-50 transition shadow-sm">⧉ Copy Schedule</button>
-            <button onClick={() => setShowModal(true)} className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition shadow-sm">
+        {/* Header */}
+        <div className="bg-white border-b border-gray-100 px-4 md:px-8 pt-5 pb-0 flex-shrink-0">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-gray-900">Master Schedule</h2>
+            <button
+              onClick={() => setShowModal(true)}
+              className="bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition shadow-sm"
+            >
               + Add Block
             </button>
           </div>
-        </div>
 
-        {/* Search */}
-        <div className="px-8 pb-4">
-          <div className="relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+          {/* Date nav */}
+          <div className="flex items-center gap-2 mb-4">
+            <button
+              onClick={() => setCurrentDate(offsetDate(currentDate, -1))}
+              className="p-2 rounded-xl hover:bg-gray-100 transition text-gray-500 font-bold"
+            >‹</button>
+            <span className="text-sm font-semibold text-gray-700 flex-1 text-center">{formatDate(currentDate)}</span>
+            <button
+              onClick={() => setCurrentDate(offsetDate(currentDate, 1))}
+              className="p-2 rounded-xl hover:bg-gray-100 transition text-gray-500 font-bold"
+            >›</button>
+          </div>
+
+          {/* Search */}
+          <div className="relative mb-4">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search classes, staff, or rooms..."
-              className="w-full bg-white border border-gray-200 rounded-2xl pl-10 pr-4 py-3 text-sm outline-none focus:ring-2 focus:ring-violet-200 focus:border-violet-300 transition shadow-sm"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-violet-200 focus:border-violet-300 transition"
             />
           </div>
-        </div>
 
-        {/* Stat Cards */}
-        <div className="grid grid-cols-5 gap-4 px-8 pb-6">
-          {[
-            { label: "Blocks Today", value: blocksToday, color: "bg-blue-100" },
-            { label: "Staff Assigned", value: staffAssigned, color: "bg-violet-100" },
-            { label: "Enrollment / Capacity", value: `${totalEnrolled}/${totalCapacity || "—"}`, color: "bg-green-100" },
-            { label: "Zone Conflicts", value: 0, color: "bg-orange-100" },
-            { label: "Staffing Gaps", value: 0, color: "bg-pink-100" },
-          ].map((card) => (
-            <div key={card.label} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-start justify-between">
-              <div>
-                <p className="text-gray-500 text-xs mb-2">{card.label}</p>
-                <h3 className="text-2xl font-bold text-gray-900">{card.value}</h3>
+          {/* Stat chips */}
+          <div className="flex gap-3 mb-4 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+            {[
+              { label: "Blocks", value: blocksToday, color: "text-blue-700 bg-blue-50" },
+              { label: "Staff", value: staffAssigned, color: "text-violet-700 bg-violet-50" },
+              { label: "Enrolled", value: `${totalEnrolled}/${totalCapacity || "—"}`, color: "text-green-700 bg-green-50" },
+            ].map((c) => (
+              <div key={c.label} className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${c.color}`}>
+                <span>{c.label}</span>
+                <span className="font-bold">{c.value}</span>
               </div>
-              <div className={`w-8 h-8 rounded-lg ${card.color}`} />
-            </div>
-          ))}
+            ))}
+          </div>
+
+          {/* Mobile location tabs */}
+          <div className="md:hidden flex border-t border-gray-100 -mx-4 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+            {LOCATIONS.map((loc) => (
+              <button
+                key={loc}
+                onClick={() => setActiveLocation(loc)}
+                className={`flex-shrink-0 px-4 py-2.5 text-xs font-semibold transition-colors whitespace-nowrap ${
+                  activeLocation === loc
+                    ? "text-violet-700 border-b-2 border-violet-600"
+                    : "text-gray-400 hover:text-gray-600"
+                }`}
+              >
+                {loc}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Schedule Grid */}
-        <div className="flex-1 px-8 pb-8">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-auto">
-            <div className="grid border-b bg-gray-50 min-w-[900px]" style={{ gridTemplateColumns: `120px repeat(${LOCATIONS.length}, 1fr)` }}>
-              <div className="p-4 text-xs font-semibold text-gray-400 uppercase tracking-wide border-r">Time</div>
-              {LOCATIONS.map((loc) => (
-                <div key={loc} className="p-4 text-sm font-semibold text-gray-700 border-r last:border-r-0">{loc}</div>
-              ))}
-            </div>
+        {/* Timeline */}
+        <div className="flex-1 overflow-y-auto overflow-x-auto bg-white">
+          {loading ? (
+            <div className="flex items-center justify-center h-64 text-gray-400 text-sm">Loading schedule...</div>
+          ) : (
+            <>
+              {/* Mobile: single column */}
+              <div className="md:hidden flex">
+                <TimeAxis />
+                <TimelineColumn
+                  blocks={filteredItems.filter((i) => i.location === activeLocation)}
+                  label={activeLocation}
+                  onSelect={setSelectedBlock}
+                />
+              </div>
 
-            <div className="min-w-[900px]">
-              {loading ? (
-                <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading schedule...</div>
-              ) : (
-                TIME_SLOTS.map((time) => (
-                  <div key={time} className="grid border-b last:border-b-0 min-h-[100px]" style={{ gridTemplateColumns: `120px repeat(${LOCATIONS.length}, 1fr)` }}>
-                    <div className="p-3 border-r text-xs text-gray-400 pt-3">{time}</div>
-                    {LOCATIONS.map((loc) => {
-                      const cellItems = filteredItems.filter(
-                        (item) => item.location === loc && item.startHour === slotHour(time)
-                      )
-                      return (
-                        <div key={loc} className="border-r last:border-r-0 p-1.5">
-                          {cellItems.length === 0 ? null : (
-                            <div
-                              className="flex gap-1 h-full"
-                              style={{ minHeight: "74px" }}
-                            >
-                              {cellItems.map((item) => (
-                                <div
-                                  key={item.id}
-                                  className="flex-1 min-w-0"
-                                  style={{ minWidth: 0 }}
-                                >
-                                  <ScheduleBlock
-                                    title={item.title}
-                                    time={item.time}
-                                    staff={item.staff}
-                                    capacity={item.capacity}
-                                    type={item.type}
-                                    onClick={() => setSelectedBlock(item)}
-                                    compact={cellItems.length > 1}
-                                  />
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+              {/* Desktop: all columns */}
+              <div className="hidden md:flex min-w-[700px]">
+                <TimeAxis />
+                {LOCATIONS.map((loc) => (
+                  <TimelineColumn
+                    key={loc}
+                    blocks={filteredItems.filter((i) => i.location === loc)}
+                    label={loc}
+                    onSelect={setSelectedBlock}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -369,11 +489,11 @@ export default function SchedulePage() {
 
       {/* Add / Edit Block Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-3xl w-[540px] p-8 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg p-6 md:p-8 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between mb-6">
               <div>
-                <h2 className="text-2xl font-bold">{editingBlockId ? "Edit Schedule Block" : "Add Schedule Block"}</h2>
+                <h2 className="text-xl font-bold">{editingBlockId ? "Edit Schedule Block" : "Add Schedule Block"}</h2>
                 <p className="text-sm text-gray-500 mt-1">{editingBlockId ? "Update the details for this block." : "Create a new class, camp, event, or activity."}</p>
               </div>
               <button onClick={() => { setShowModal(false); setEditingBlockId(null) }} className="w-9 h-9 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-700 transition">✕</button>
@@ -475,10 +595,10 @@ export default function SchedulePage() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => { setShowModal(false); setEditingBlockId(null) }} className="px-5 py-2.5 text-sm text-gray-600 hover:bg-gray-100 rounded-2xl transition font-medium">Cancel</button>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => { setShowModal(false); setEditingBlockId(null) }} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-2xl text-sm font-semibold hover:bg-gray-50 transition">Cancel</button>
               <button onClick={handleSaveBlock} disabled={saving}
-                className="bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white px-6 py-2.5 rounded-2xl font-semibold text-sm shadow-sm hover:shadow-md transition">
+                className="flex-1 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white py-2.5 rounded-2xl font-semibold text-sm shadow-sm transition">
                 {saving ? "Saving..." : "Save Block"}
               </button>
             </div>
