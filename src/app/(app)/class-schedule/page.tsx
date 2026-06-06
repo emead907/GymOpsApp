@@ -11,6 +11,7 @@ type ClassBlock = {
   start: string // "HH:MM" 24-hr
   end: string
   type: ClassType
+  coaches?: string[]
 }
 
 type DayData = {
@@ -40,13 +41,13 @@ const SCHEDULE: DayData[] = [
       { name: "Shining Stars", start: "17:30", end: "18:30", type: "class" },
     ],
     big: [
-      { name: "Team Bronze",       start: "09:00", end: "11:00", type: "team" },
-      { name: "Team Silver",       start: "09:00", end: "12:00", type: "team" },
-      { name: "Team Gold",         start: "09:00", end: "12:00", type: "team" },
-      { name: "Team Plat/Diamond", start: "09:00", end: "13:00", type: "team" },
-      { name: "Starz 1",           start: "16:30", end: "17:30", type: "class" },
-      { name: "Starz 3",           start: "17:30", end: "18:30", type: "class" },
-      { name: "Starz 2",           start: "18:30", end: "19:30", type: "class" },
+      { name: "Team Bronze",       start: "09:00", end: "11:00", type: "team",  coaches: ["Amanda Griswold"] },
+      { name: "Team Silver",       start: "09:00", end: "12:00", type: "team",  coaches: ["Amanda Griswold"] },
+      { name: "Team Gold",         start: "09:00", end: "12:00", type: "team",  coaches: ["Emily Mead"] },
+      { name: "Team Plat/Diamond", start: "09:00", end: "13:00", type: "team",  coaches: ["Emily Mead"] },
+      { name: "Starz 1",           start: "16:30", end: "17:30", type: "class", coaches: ["Aliyah Allen"] },
+      { name: "Starz 3",           start: "17:30", end: "18:30", type: "class", coaches: ["Aliyah Allen"] },
+      { name: "Starz 2",           start: "18:30", end: "19:30", type: "class", coaches: ["Aliyah Allen"] },
     ],
     camp: [{ name: "Summer Camp", start: "08:00", end: "17:00", type: "camp" }],
   },
@@ -54,44 +55,44 @@ const SCHEDULE: DayData[] = [
   {
     little: [
       { name: "Shooting Stars", start: "13:00", end: "14:00", type: "class" },
-      { name: "Ninja 1",        start: "16:30", end: "17:30", type: "ninja" },
-      { name: "Twinkling Stars",start: "16:45", end: "17:30", type: "preschool" },
-      { name: "Shooting Stars", start: "17:30", end: "18:30", type: "class" },
-      { name: "Shooting Stars", start: "18:30", end: "19:30", type: "class" },
+      { name: "Ninja 1",        start: "16:30", end: "17:30", type: "ninja",     coaches: ["Brynlee Cafferty"] },
+      { name: "Twinkling Stars",start: "16:45", end: "17:30", type: "preschool", coaches: ["Tamsin Schoedler"] },
+      { name: "Shooting Stars", start: "17:30", end: "18:30", type: "class",     coaches: ["Mckenna Alvey"] },
+      { name: "Shooting Stars", start: "18:30", end: "19:30", type: "class",     coaches: ["Tamsin Schoedler"] },
     ],
     big: [
-      { name: "Team Bronze",   start: "09:00", end: "11:00", type: "team" },
-      { name: "Team Silver",   start: "09:00", end: "12:00", type: "team" },
-      { name: "Shining Stars", start: "16:30", end: "17:30", type: "class" },
-      { name: "Super Stars",   start: "17:00", end: "18:30", type: "class" },
-      { name: "Pre-Team",      start: "17:00", end: "19:00", type: "team" },
-      { name: "Shining Stars", start: "17:30", end: "18:30", type: "class" },
-      { name: "Ninja 2",       start: "17:30", end: "18:30", type: "ninja" },
-      { name: "Shining Stars", start: "18:30", end: "19:30", type: "class" },
-      { name: "Ninja 3",       start: "18:30", end: "19:30", type: "ninja" },
+      { name: "Team Bronze",   start: "09:00", end: "11:00", type: "team",  coaches: ["Mckenna Alvey", "Amanda Griswold", "Emily Mead"] },
+      { name: "Team Silver",   start: "09:00", end: "12:00", type: "team",  coaches: ["Mckenna Alvey", "Amanda Griswold", "Emily Mead"] },
+      { name: "Shining Stars", start: "16:30", end: "17:30", type: "class", coaches: ["Aliyah Allen"] },
+      { name: "Super Stars",   start: "17:00", end: "18:30", type: "class", coaches: ["Nikki Rainville"] },
+      { name: "Pre-Team",      start: "17:00", end: "19:00", type: "team",  coaches: ["Mckenna Alvey"] },
+      { name: "Shining Stars", start: "17:30", end: "18:30", type: "class", coaches: ["Aliyah Allen"] },
+      { name: "Ninja 2",       start: "17:30", end: "18:30", type: "ninja", coaches: ["Brynlee Cafferty"] },
+      { name: "Shining Stars", start: "18:30", end: "19:30", type: "class", coaches: ["Aliyah Allen"] },
+      { name: "Ninja 3",       start: "18:30", end: "19:30", type: "ninja", coaches: ["Brynlee Cafferty", "Swayah Olney"] },
     ],
     camp: [{ name: "Summer Camp", start: "08:00", end: "17:00", type: "camp" }],
   },
   // Wednesday
   {
     little: [
-      { name: "Tiny Stars",     start: "16:30", end: "17:15", type: "preschool" },
-      { name: "Shooting Stars", start: "16:30", end: "17:30", type: "class" },
-      { name: "Ninja 1",        start: "16:30", end: "17:30", type: "ninja" },
-      { name: "Twinkling Stars",start: "17:30", end: "18:15", type: "preschool" },
-      { name: "Shooting Stars", start: "17:30", end: "18:30", type: "class" },
-      { name: "Ninja 3",        start: "18:30", end: "19:30", type: "ninja" },
+      { name: "Tiny Stars",     start: "16:30", end: "17:15", type: "preschool", coaches: ["Tamsin Schoedler"] },
+      { name: "Shooting Stars", start: "16:30", end: "17:30", type: "class",     coaches: ["Mckenna Alvey"] },
+      { name: "Ninja 1",        start: "16:30", end: "17:30", type: "ninja",     coaches: ["Brynlee Cafferty", "Adam Santiago"] },
+      { name: "Twinkling Stars",start: "17:30", end: "18:15", type: "preschool", coaches: ["Mckenna Alvey"] },
+      { name: "Shooting Stars", start: "17:30", end: "18:30", type: "class",     coaches: ["Nikki Rainville"] },
+      { name: "Ninja 3",        start: "18:30", end: "19:30", type: "ninja",     coaches: ["Adam Santiago", "Brynlee Cafferty"] },
     ],
     big: [
-      { name: "Team Gold",         start: "09:00", end: "12:00", type: "team" },
-      { name: "Team Plat/Diamond", start: "09:00", end: "13:00", type: "team" },
+      { name: "Team Gold",         start: "09:00", end: "12:00", type: "team" ,   coaches: ["Emily Mead"] },
+      { name: "Team Plat/Diamond", start: "09:00", end: "13:00", type: "team",    coaches: ["Emily Mead"] },
       { name: "Tumbling",          start: "12:00", end: "13:00", type: "tumbling" },
       { name: "Shining Stars",     start: "12:00", end: "13:00", type: "class" },
-      { name: "Shining Stars",     start: "16:30", end: "17:30", type: "class" },
-      { name: "Adv Tumbling",      start: "17:30", end: "18:30", type: "tumbling" },
-      { name: "Shining Stars",     start: "17:30", end: "18:30", type: "class" },
-      { name: "Shining Stars",     start: "18:15", end: "19:15", type: "class" },
-      { name: "Beg Tumbling",      start: "18:30", end: "19:30", type: "tumbling" },
+      { name: "Shining Stars",     start: "16:30", end: "17:30", type: "class",   coaches: ["Nikki Rainville"] },
+      { name: "Adv Tumbling",      start: "17:30", end: "18:30", type: "tumbling",coaches: ["Adam Santiago"] },
+      { name: "Shining Stars",     start: "17:30", end: "18:30", type: "class",   coaches: ["Aliyah Allen", "Nikki Rainville"] },
+      { name: "Shining Stars",     start: "18:15", end: "19:15", type: "class",   coaches: ["Mckenna Alvey"] },
+      { name: "Beg Tumbling",      start: "18:30", end: "19:30", type: "tumbling",coaches: ["Nikki Rainville", "Swayah Olney"] },
     ],
     camp: [{ name: "Summer Camp", start: "08:00", end: "17:00", type: "camp" }],
   },
@@ -99,12 +100,12 @@ const SCHEDULE: DayData[] = [
   {
     little: [],
     big: [
-      { name: "Team Bronze",  start: "09:00", end: "11:00", type: "team" },
-      { name: "Team Silver",  start: "09:00", end: "12:00", type: "team" },
-      { name: "Starz 1",      start: "16:30", end: "17:30", type: "class" },
-      { name: "Starz 3",      start: "17:30", end: "18:30", type: "class" },
-      { name: "Starz 2",      start: "18:30", end: "19:30", type: "class" },
-      { name: "Shining Stars",start: "18:30", end: "19:30", type: "class" },
+      { name: "Team Bronze",   start: "09:00", end: "11:00", type: "team",  coaches: ["Amanda Griswold"] },
+      { name: "Team Silver",   start: "09:00", end: "12:00", type: "team",  coaches: ["Amanda Griswold"] },
+      { name: "Starz 1",       start: "16:30", end: "17:30", type: "class", coaches: ["Aliyah Allen"] },
+      { name: "Starz 3",       start: "17:30", end: "18:30", type: "class", coaches: ["Aliyah Allen"] },
+      { name: "Starz 2",       start: "18:30", end: "19:30", type: "class", coaches: ["Aliyah Allen"] },
+      { name: "Shining Stars", start: "18:30", end: "19:30", type: "class", coaches: ["Aliyah Allen"] },
     ],
     camp: [{ name: "Summer Camp", start: "08:00", end: "17:00", type: "camp" }],
   },
@@ -112,23 +113,23 @@ const SCHEDULE: DayData[] = [
   {
     little: [],
     big: [
-      { name: "Team Gold",         start: "09:00", end: "12:00", type: "team" },
-      { name: "Team Plat/Diamond", start: "09:00", end: "13:00", type: "team" },
+      { name: "Team Gold",         start: "09:00", end: "12:00", type: "team", coaches: ["Emily Mead"] },
+      { name: "Team Plat/Diamond", start: "09:00", end: "13:00", type: "team", coaches: ["Emily Mead"] },
     ],
     camp: [{ name: "Summer Camp", start: "08:00", end: "17:00", type: "camp" }],
   },
   // Saturday
   {
     little: [
-      { name: "Twinkling Stars", start: "09:30", end: "10:15", type: "preschool" },
-      { name: "Twinkling Stars", start: "10:15", end: "11:00", type: "preschool" },
-      { name: "Tiny Stars",      start: "10:15", end: "11:00", type: "preschool" },
+      { name: "Twinkling Stars", start: "09:30", end: "10:15", type: "preschool", coaches: ["Tamsin Schoedler"] },
+      { name: "Twinkling Stars", start: "10:15", end: "11:00", type: "preschool", coaches: ["Aliyah Allen"] },
+      { name: "Tiny Stars",      start: "10:15", end: "11:00", type: "preschool", coaches: ["Tamsin Schoedler"] },
       { name: "Shooting Stars",  start: "10:15", end: "11:15", type: "class" },
-      { name: "Twinkling Stars", start: "11:15", end: "12:00", type: "preschool" },
+      { name: "Twinkling Stars", start: "11:15", end: "12:00", type: "preschool", coaches: ["Tamsin Schoedler"] },
       { name: "Shooting Stars",  start: "11:15", end: "12:15", type: "class" },
     ],
     big: [
-      { name: "Shining Stars", start: "11:15", end: "12:15", type: "class" },
+      { name: "Shining Stars", start: "11:15", end: "12:15", type: "class", coaches: ["Aliyah Allen"] },
     ],
     camp: [],
   },
@@ -236,6 +237,11 @@ function TimelineColumn({ blocks, label }: { blocks: ClassBlock[]; label?: strin
                   {showTime && (
                     <p className="text-[10px] text-gray-400 mt-0.5 leading-tight">
                       {fmt(b.start)}–{fmt(b.end)}
+                    </p>
+                  )}
+                  {showTime && b.coaches && b.coaches.length > 0 && (
+                    <p className={`text-[10px] mt-0.5 leading-tight font-medium ${s.text} opacity-70 truncate`}>
+                      {b.coaches.map(c => c.split(" ")[0]).join(", ")}
                     </p>
                   )}
                 </div>
